@@ -11,7 +11,7 @@ fui(
   argvals = NULL,
   var = TRUE,
   analytic = TRUE,
-  parallel = TRUE,
+  parallel = FALSE,
   silent = FALSE,
   nknots_min = NULL,
   nknots_min_cov = 35,
@@ -50,7 +50,7 @@ of the coefficient estimates. Defaults to \code{TRUE}.}
 approach or bootstrap. Defaults to \code{TRUE}.}
 
 \item{parallel}{Logical, indicating whether to do parallel computing.
-Defaults to \code{TRUE}.}
+Defaults to \code{FALSE}.}
 
 \item{silent}{Logical, indicating whether to show descriptions of each step.
 Defaults to \code{FALSE}.}
