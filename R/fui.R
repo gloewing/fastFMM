@@ -27,7 +27,7 @@
 #' @param analytic Logical, indicating whether to use the analytic inference
 #' approach or bootstrap. Defaults to \code{TRUE}.
 #' @param parallel Logical, indicating whether to do parallel computing.
-#' Defaults to \code{TRUE}.
+#' Defaults to \code{FALSE}.
 #' @param silent Logical, indicating whether to show descriptions of each step.
 #' Defaults to \code{FALSE}.
 #' @param nknots_min Minimal number of knots in the penalized smoothing for the regression coefficients.
@@ -98,7 +98,7 @@ fui <- function(formula,
                 argvals = NULL,
                 var = TRUE,
                 analytic = TRUE,
-                parallel = TRUE,
+                parallel = FALSE,
                 silent = FALSE,
                 nknots_min = NULL,
                 nknots_min_cov = 35,
