@@ -1,0 +1,33 @@
+Package: fastFMM
+Type: Package
+Title: Fast Functional Mixed Models using Fast Univariate Inference
+Version: 0.1.0
+Date: 2023-04-26
+Authors@R: c(
+    person("Erjia", "Cui", role = c("aut", "cre"), email = "cui00171@umn.edu"),
+    person("Gabriel", "Loewinger", role = "aut", email = "gloewinger@gmail.com"))
+Description: Implementation of the fast univariate inference (Cui et al. 2022)
+    approach for fitting functional mixed models.
+License: GPL (>=2)
+Encoding: UTF-8
+LazyData: true
+Repository: CRAN
+Imports:
+    lme4,
+    parallel,
+    cAIC4,
+    magrittr,
+    dplyr,
+    mgcv,
+    MASS,
+    lsei,
+    refund,
+    stringr,
+    Matrix,
+    mvtnorm,
+    arrangements,
+    progress,
+    ggplot2,
+    gridExtra
+RoxygenNote: 7.2.3
+
