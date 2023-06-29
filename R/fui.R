@@ -1428,7 +1428,7 @@ fui <- function(formula,
       # Obtain bootstrap variance
       betaHat.var <- array(NA, dim = c(L,L,nrow(betaHat)))
       for(r in 1:nrow(betaHat)){
-        betaHat.var[,,r] <- 1*var(t(betaHat_boot[r,,])) ## account for within-subject correlation
+        betaHat.var[,,r] <- 1.2*var(t(betaHat_boot[r,,])) ## account for within-subject correlation
       }
       
       # Obtain qn to construct joint CI using the fast approach
