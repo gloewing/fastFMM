@@ -1,17 +1,17 @@
 ---
-title: "fastFMM Vignette: Fast Functional Mixed Models using Fast Univariate Inference"
+  title: "fastFMM Vignette: Fast Functional Mixed Models using Fast Univariate Inference"
 author: Gabriel Loewinger, Erjia Cui
 # - National Institute of Mental Health (NIH), University of Minnesota
 date: "`r Sys.Date()`"
 output:
   pdf_document:
-    toc: yes
+  toc: yes
 vignette: >
   %\VignetteIndexEntry{fastFMM Vignette}
-  %\VignetteEncoding{UTF-8}
-  %\VignetteEngine{knitr::rmarkdown} 
+%\VignetteEncoding{UTF-8}
+%\VignetteEngine{knitr::rmarkdown} 
 ---
-
+  
 ```{r setup, echo = FALSE, eval = FALSE}
 knitr::opts_chunk$set(comment = "#>", warning=FALSE, message=FALSE)
 library(fastFMM)
@@ -26,45 +26,45 @@ output: pdf_document
 library(knitr)
 hook_output <- knit_hooks$get("output")
 knit_hooks$set(output = function(x, options) {
-   lines <- options$output.lines
-   if (is.null(lines)) {
-     return(hook_output(x, options))  # pass to default hook
-   }
-   x <- unlist(strsplit(x, "\n"))
-   more <- "..."
-   if (length(lines)==1) {        # first n lines
-     if (length(x) > lines) {
-       # truncate the output, but add ....
-       x <- c(head(x, lines), more)
-     }
-   } else {
-     x <- c(more, x[lines], more)
-   }
-   # paste these lines together
-   x <- paste(c(x, ""), collapse = "\n")
-   hook_output(x, options)
- })
+  lines <- options$output.lines
+  if (is.null(lines)) {
+    return(hook_output(x, options))  # pass to default hook
+  }
+  x <- unlist(strsplit(x, "\n"))
+  more <- "..."
+  if (length(lines)==1) {        # first n lines
+    if (length(x) > lines) {
+      # truncate the output, but add ....
+      x <- c(head(x, lines), more)
+    }
+  } else {
+    x <- c(more, x[lines], more)
+  }
+  # paste these lines together
+  x <- paste(c(x, ""), collapse = "\n")
+  hook_output(x, options)
+})
 ```
 
 # Introduction
 
 `fastFMM` is a fast toolkit for fitting functional mixed models using the fast univariate inference (FUI) method proposed in [Cui et al. (2022)](https://doi.org/10.1080/10618600.2021.1950006). Assume the multi-level/longitudinal functional data are of the type $Y_{ij}(s)$ on a grid $\{s_1, ..., s_L\}$ of the compact functional domain $\mathcal{S}$. Denote by $i = 1, 2, ..., I$ the index of subject, and $j = 1, 2, ..., J_i$ the index of longitudinal visit at time $t_{ij}$. In addition to $Y_{ij}(s)$, for each visit of each subject, we also observe $\boldsymbol{X}_{ij} = [X_{ij1}, X_{ij2}, ..., X_{ijp}]^T \in \mathbb{R}^p$ as the fixed and $\boldsymbol{Z}_{ij} = [Z_{ij1}, Z_{ij2}, ..., Z_{ijq}]^T \in \mathbb{R}^q$ as the random effects variables. Denote by $g(\cdot)$ a pre-specified link function and $EF(\cdot)$ the exponential family distribution. A longitudinal function-on-scalar regression model has the following form:
-
-$$
-\begin{aligned} 
-  & Y_{ij}(s) \sim EF\{\mu_{ij}(s)\}, \\
-  & g\{\mu_{ij}(s)\} = \eta_{ij}(s) = \boldsymbol{X}_{ij}^T\boldsymbol{\beta}(s) + \boldsymbol{Z}_{ij}^T\boldsymbol{u}_i(s).
+  
+  $$
+  \begin{aligned} 
+& Y_{ij}(s) \sim EF\{\mu_{ij}(s)\}, \\
+& g\{\mu_{ij}(s)\} = \eta_{ij}(s) = \boldsymbol{X}_{ij}^T\boldsymbol{\beta}(s) + \boldsymbol{Z}_{ij}^T\boldsymbol{u}_i(s).
 \end{aligned} 
 $$ The model above is also called Functional Mixed Model (FMM) in the Functional Data Analysis (FDA) literature. Many statistical methods have been proposed to fit this model, which in general fall into two categories: joint methods and marginal methods. FUI is a marginal method that is computationally fast and achieves similar estimation accuracy compared with the state-of-the-art joint method, such as the `refund::pffr()` function.
 
 FUI consists of the following three steps:
-
-1.  At each location $s_l \in \mathcal{S}, l = 1, 2, ..., L$, fit a pointwise generalized linear mixed model (GLMM):
-
-$$
-\begin{aligned} 
-  & Y_{ij}(s_l) \sim EF\{\mu_{ij}(s_l)\}, \\
-  & g\{\mu_{ij}(s_l)\} = \eta_{ij}(s_l) = \boldsymbol{X}_{ij}^T\boldsymbol{\beta}(s_l) + \boldsymbol{Z}_{ij}^T\boldsymbol{u}_i(s_l).
+  
+  1.  At each location $s_l \in \mathcal{S}, l = 1, 2, ..., L$, fit a pointwise generalized linear mixed model (GLMM):
+  
+  $$
+  \begin{aligned} 
+& Y_{ij}(s_l) \sim EF\{\mu_{ij}(s_l)\}, \\
+& g\{\mu_{ij}(s_l)\} = \eta_{ij}(s_l) = \boldsymbol{X}_{ij}^T\boldsymbol{\beta}(s_l) + \boldsymbol{Z}_{ij}^T\boldsymbol{u}_i(s_l).
 \end{aligned} 
 $$ Here $\boldsymbol{\beta}(s_l)$ is a $p \times 1$ dimensional vector of fixed effects and $\boldsymbol{u}_i(s_l)$ is a $q \times 1$ dimensional vector of random effects. Denote the estimates of fixed effects from $L$ separate univariate GLMMs as $\boldsymbol{\tilde{\beta}}(s_1), \boldsymbol{\tilde{\beta}}(s_2), ..., \boldsymbol{\tilde{\beta}}(s_L)$.
 
@@ -79,16 +79,16 @@ In this vignette, we provide a tutorial on how to use the `fui` function to fit 
 # Installation
 
 <!-- `sMTL` can be installed directly from CRAN by executing: -->
-
-<!-- ```{r, eval=FALSE} -->
-
-<!-- install.packages("sMTL") -->
-
-<!-- ``` -->
-
-The development version of `fastFMM` can be downloaded from github by executing:
-
-```{r, eval=FALSE}
+  
+  <!-- ```{r, eval=FALSE} -->
+  
+  <!-- install.packages("sMTL") -->
+  
+  <!-- ``` -->
+  
+  The development version of `fastFMM` can be downloaded from github by executing:
+  
+  ```{r, eval=FALSE}
 library(devtools)
 install_github("gloewing/fastFMM")
 ```
@@ -168,31 +168,31 @@ The `fui()` function accepts either format style.
 ## Model Fitting and Function Arguments
 
 Let's start with a simple model not too unlike the functional version of a paired-samples t-test: we include the binary $\texttt{treatment}$ covariate with a random slope. Observe that the syntax for the model formula is based off of the `lmer()` function in the `lme4` package. The model is then:
-
-$$
-\begin{aligned} 
-    & Y_{ij}(s) =  \beta_0(s) + {X}_{ij}{\beta}_1(s) + {u}_i(s) + \epsilon_{ij}(s)  \notag 
+  
+  $$
+  \begin{aligned} 
+& Y_{ij}(s) =  \beta_0(s) + {X}_{ij}{\beta}_1(s) + {u}_i(s) + \epsilon_{ij}(s)  \notag 
 \end{aligned} 
 $$ We start with implementation of the model with analytic inference.
 
 ```{r, eval = FALSE}
 mod <- fui(Y ~ treatment + # main effect of cue
-                  (1 | id),  # random intercept
-                data = dat) 
+             (1 | id),  # random intercept
+           data = dat) 
 ```
 
 Unless specified otherwise, `fui()` assumes a Gaussian family and provides inference based on an analytic form. Below we fit a similar model but include a random subject-specific random slope for treatment.
 
--   If we instead wished to use bootstrap confidence intervals, we simply set the argument `analytic=FALSE`. The number of bootstrap replicates can be set with the argument `boot`. This defaults to `boot=500`.
+-   If we instead wished to use bootstrap confidence intervals, we simply set the argument `analytic=FALSE`. The type of bootstrap (e.g., "cluster", "parametric", "wild", etc.) can be set with the `boot_type` argument (see the "Advanced Bootstrapping" section below for more details). The number of bootstrap replicates can be set with the argument `boot` (defaults to `boot=500`).
 
 -   Both analytic and bootstrap inference can be sped up substantially by parallelizing the univariate model-fitting with `parallel=TRUE`. The number of cores used for parallelizing can be specified in `num_cores`. Otherwise, `R` will set this automatically based on the number of cores available on your computer.
 
 ```{r, eval = FALSE}
 mod <- fui(Y ~ treatment + # main effect of cue
-                  (treatment | id),  # random intercept
-                  data = dat,
-                  parallel = TRUE,
-                  analytic = FALSE) # bootstrap
+             (treatment | id),  # random intercept
+           data = dat,
+           parallel = TRUE,
+           analytic = FALSE) # bootstrap
 ```
 
 -   The `family` argument is the standard GLM family from `R` `stats::glm()`. More specifically, our package allows for any family in the `glmer()` and `lmer()` functions offered by the `lme4` package.
@@ -204,10 +204,10 @@ Y_mat <- dat[,-seq(1,3)])
 L <- ncol(Y_mat) # number of columns of functional outcome
 
 mod <- fui(Y ~ treatment + # main effect of cue
-                  (treatment | id),  # random intercept
-                  data = dat,
-                  argvals = seq(from = 1, to = L, by = 3) # every 3rd data point
-                  ) 
+             (treatment | id),  # random intercept
+           data = dat,
+           argvals = seq(from = 1, to = L, by = 3) # every 3rd data point
+) 
 ```
 
 -   We may wish to compare model fit between multiple models. To speed this process up, we can turn off the full inference by setting `var = FALSE` and then use the `AIC` and `BIC` naturally outputted in the model objects.
@@ -218,15 +218,15 @@ L <- ncol(Y_mat) # number of columns of functional outcome
 
 # model 1: random slope model
 mod1 <- fui(Y ~ treatment + # main effect of cue
-                  (treatment | id),  # random intercept
-                  data = dat,
-                  var = FALSE) 
+              (treatment | id),  # random intercept
+            data = dat,
+            var = FALSE) 
 
 # model 2: random intercept model
 mod2 <- fui(Y ~ treatment + # main effect of cue
-                  (1 | id),  # random intercept
-                  data = dat,
-                  var = FALSE) 
+              (1 | id),  # random intercept
+            data = dat,
+            var = FALSE) 
 
 # compare model fits
 colMeans(mod1$aic)
@@ -236,12 +236,12 @@ colMeans(mod2$aic)
 Since model 1 has a lower average `AIC`, one might wish to proceed with inference using that model.
 
 -   For any complex random effect structures (e.g., nested) or anytime more than one variable is specified on the righthand side of the `|` symbol in the random effects formula , the column name in the `data` data.frame corresponding to the subject-ID should be specified in the argument `subj_ID` to avoid any confusion. See the example below:
-
+  
 ```{r, eval = FALSE}
 mod <- fui(Y ~ treatment + # main effect of cue
-                  (treatment | id/trial),  # random intercept
-                  data = dat,
-                  subj_ID = "id") 
+             (treatment | id/trial),  # random intercept
+           data = dat,
+           subj_ID = "id") 
 ```
 
 ## Model Fit Plots
@@ -250,8 +250,8 @@ After fitting a model, one can quickly visualize estimates and 95% confidence in
 
 ```{r}
 mod <- fui(Y ~ treatment + # main effect of cue
-                  (treatment | id),  # random intercept
-                  data = dat) 
+             (treatment | id),  # random intercept
+           data = dat) 
 
 fui_plot <- plot_fui(mod)
 ```
@@ -278,6 +278,18 @@ head(fui_plot$treatment)
 ```
 
 # Advanced Options
+
+## Advanced Bootstrapping
+
+We offer diverse bootstrapping functionality:
+* Set the argument `analytic=FALSE` for a bootstrap
+  + Specify the type of bootstrap with the `boot_type` argument:
+    - `boot_type` "wild", "reb", "case", "residual": are fit through the          [lmeresampler](https://CRAN.R-project.org/package=lmeresampler) package. See their CRAN [vignette](https://cran.r-project.org/web/packages/lmeresampler/vignettes/lmeresampler-vignette.html) for more information. Note that we automatically use "wild" with arguments, hccme="hc2" and aux.dist="mammen". For "reb" we use reb_type=0. Call of these can be used for gaussian. Only "cases" and "residual" can be used for non-gaussian responses.
+    - `boot_type` "cluster": is a cluster-bootstrap fit manually only in our package and is currently the only version that allows for parallelization. In principle, this should produce comparable results to "case" (implemented through `lmeresampler`) but if parallelization is not used, we anticipate "case" may be substantially faster. This can be used for both gaussian and non-gaussian responses.
+    - `boot_type` "parametric" and "semiparametric": are fit through the `bootMer()` function in [lme4](https://rdrr.io/cran/lme4/man/bootMer.html). Both options can be used for gaussian and non-gaussian responses. See their documentation for more information.
+    - `boot_type` defaults to `NULL`. If left unspecified as `NULL`, `fui()` will default to using "cluster" for non-gaussian responses. For gaussian responses, it defaults to "reb" if the number of clusters $n \leq 10$ and "wild" otherwise.
+  + The number of bootstrap replicates can be set with the argument `boot`. This defaults to `boot=500`.
+  + [lmeresampler: Bootstrap Methods for Nested Linear Mixed-Effects Models](https://CRAN.R-project.org/package=lmeresampler)
 
 ## Additional `fui()` arguments
 
@@ -322,12 +334,16 @@ head(fui_plot$treatment)
 
 -   The following warning messages can occur
 
-    -   \`\`Warning messages: 1: In sqrt(Eigen\$values) : NaNs produced'' -- this can occur when using bootstrap confidence intervals because of the used functional PCA functions. It can be safely ignored.
-    -   \``Warning in checkConv(attr(opt, "derivs"), opt, ctrl = control checkConv: Model failed to converge with max|grad'' -- this is a`lme4\` warning message: for data sets with many observations or for models with many parameters (e.g., random effects, fixed effects), convergence warnings are not uncommon. This warning message comes from point-wise mixed model fits. Therefore if these warnings are issued for many points along the functional domain, you may want to consider your fixed or random effect specification. If the warning is only issued for a few points on the functional domain, you may not need to alter your model specification.
-    -   \``Warning in checkConv(attr(opt, "derivs"), opt.par, ctrl = control.checkConv, : Model is nearly unidentifiable: very large eigenvalue: - Rescale variables? Model is nearly unidentifiable: large eigenvalue ratio'' -- This is a`lme4`warning message --This warning can frequently be resolved by scaling continuous covariates, for example, with the command`scale()`--For more information on the`lme4\` package, warning messages, model syntax and general mixed modeling information, see: Doug Bates. [lme4: Mixed-effects modeling with R](https://stat.ethz.ch/~maechler/MEMo-pages/lMMwR.pdf) (2022).
+    -   ``Warning messages: 1: In sqrt(Eigen\$values) : NaNs produced'' -- this can occur when using bootstrap confidence intervals because of the used functional PCA functions. It can be safely ignored.
+    -   ``Warning in checkConv(attr(opt, "derivs"), opt, ctrl = control checkConv: Model failed to converge with max|grad'' -- this is a`lme4\` warning message: for data sets with many observations or for models with many parameters (e.g., random effects, fixed effects), convergence warnings are not uncommon. This warning message comes from point-wise mixed model fits. Therefore if these warnings are issued for many points along the functional domain, you may want to consider your fixed or random effect specification. If the warning is only issued for a few points on the functional domain, you may not need to alter your model specification.
+    -   ``Warning in checkConv(attr(opt, "derivs"), opt.par, ctrl = control.checkConv, : Model is nearly unidentifiable: very large eigenvalue: - Rescale variables? Model is nearly unidentifiable: large eigenvalue ratio'' -- This is a`lme4`warning message --This warning can frequently be resolved by scaling continuous covariates, for example, with the command`scale()`--For more information on the`lme4\` package, warning messages, model syntax and general mixed modeling information, see: Doug Bates. [lme4: Mixed-effects modeling with R](https://stat.ethz.ch/~maechler/MEMo-pages/lMMwR.pdf) (2022).
+
+
 
 # References
 
 Doug Bates. [lme4: Mixed-effects modeling with R](https://stat.ethz.ch/~maechler/MEMo-pages/lMMwR.pdf) (2022).
 
 Erjia Cui, Andrew Leroux, Ekaterina Smirnova, and Ciprian Crainiceanu. [Fast Univariate Inference for Longitudinal Functional Models](https://doi.org/10.1080/10618600.2021.1950006). Journal of Computational and Graphical Statistics (2022).
+
+Adam Loy, Spenser Steele, Jenna Korobova. [lmeresampler: Bootstrap Methods for Nested Linear Mixed-Effects Models](https://CRAN.R-project.org/package=lmeresampler). CRAN (2023).
