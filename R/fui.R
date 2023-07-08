@@ -83,7 +83,6 @@
 #' @import Matrix
 #' @importFrom mvtnorm rmvnorm
 #' @importFrom Rfast rowMaxs
-#' @import arrangements
 #' @import progress
 #'
 #' @examples
@@ -108,10 +107,7 @@ fui <- function(formula,
                 residuals = FALSE,
                 G_return = FALSE,
                 num_boots = 500,
-                boot_type = "cluster",
-                hccme = "hc2", 
-                aux.dist = "mammen",
-                reb_type = 0,
+                boot_type = NULL,
                 seed = 1,
                 subj_ID = NULL,
                 num_cores = NULL,
@@ -154,8 +150,14 @@ fui <- function(formula,
   }else{ # observations stored as a matrix in one column
     L <- ncol(data[,out_index])
   }
-  # Set up the functional domain when not specified
-  if(is.null(argvals)) argvals <- 1:L
+  if(is.null(argvals)){
+    # Set up the functional domain when not specified
+    argvals <- 1:L
+  }else{
+    # when only using a subset of the functional domain
+    if(max(argvals) > length(out_index)) stop("Maximum index specified in argvals is greater than the total number of columns for the functional outcome")
+    L <- length(argvals)
+  }
   if(family == "gaussian" & analytic & L > 400)   message("Yowzaz! Your functional data is very dense! This may lead to slow runtimes. Consider subsampling along the functional domain (i.e., reduce columns of outcome matrix) or using bootstrap inference.") 
   
   # Create a matrix to store AICs
@@ -1306,24 +1308,21 @@ fui <- function(formula,
         }
       }
       ID.number <- unique(data[,group])
-      
-      # Decide the number of bootstrap samples
-      if(length(ID.number) < 7){ ## only need do it when less than 7 subjects
-        # Generate combinations of subject IDs for bootstrap depending on how many subjects there are
-        idx_perm <- arrangements::combinations(x = 1:length(ID.number), length(ID.number), replace = TRUE) # all unique permutations
-        idx_perm <- idx_perm[apply(idx_perm, 1, function(x) length(unique(x)) > 1),] # remove any with all the same subjects
-        # not enough unique combinations so reduce number of bootstrap samples
-        B <- nrow(idx_perm)
-      }else{
-        # bootstrap samples (draw extra in case of rows with all the same subjects)
-        idx_perm <- t( replicate(num_boots * 2, sample.int(length(ID.number), length(ID.number), replace = TRUE)) )
-        idx_perm <- idx_perm[ apply(idx_perm, 1, function(x) length(unique(x)) > 1), ] # remove any with all the same subjects
-        idx_perm <- idx_perm[1:num_boots,] # save only a subset of the rows needed for bootstrap
-        B <- num_boots
-      }
-      
+      idx_perm <- t( replicate(num_boots, sample.int(length(ID.number), length(ID.number), replace = TRUE)) )
+      # idx_perm <- idx_perm[ apply(idx_perm, 1, function(x) length(unique(x)) > 1), ] # remove any with all the same subjects
+      # idx_perm <- idx_perm[1:num_boots,] # save only a subset of the rows needed for bootstrap
+      B <- num_boots
       betaHat_boot <- array(NA, dim = c(nrow(betaHat), ncol(betaHat), B))
       
+      if(is.null(boot_type)){
+        # default bootstrap type if not specified
+        if(family == "gaussian"){
+          boot_type <- ifelse(length(ID.number) <= 10, "reb", "wild")
+        }else{
+          boot_type <- "cluster"
+        }
+      }
+        
       # original way
       if(boot_type == "cluster"){
       # Do bootstrap
@@ -1403,9 +1402,9 @@ fui <- function(formula,
                                                    B = B, 
                                                    type = boot_type, 
                                                    resample = resample_vec, # only matters for type = "case"
-                                                   hccme = hccme, # wild bootstrap
-                                                   aux.dist = aux.dist, # wild bootstrap
-                                                   reb_type = reb_type)$replicates # for reb bootstrap only
+                                                   hccme = "hc2", # wild bootstrap
+                                                   aux.dist = "mammen", # wild bootstrap
+                                                   reb_type = 0)$replicates # for reb bootstrap only
             betaTilde_boot[,l,] <- t(as.matrix(boot_sample[,1:nrow(betaHat)]))
           }else{
             use.u <- ifelse(boot_type == "semiparametric", TRUE, FALSE)
@@ -1430,7 +1429,7 @@ fui <- function(formula,
       for(r in 1:nrow(betaHat)){
         betaHat.var[,,r] <- 1.2*var(t(betaHat_boot[r,,])) ## account for within-subject correlation
       }
-      
+       
       # Obtain qn to construct joint CI using the fast approach
       if(!silent)   print("Step 3.3")
       qn <- rep(0, length = nrow(betaHat))
@@ -1450,17 +1449,17 @@ fui <- function(formula,
         theta <- matrix(rnorm(N*K), nrow=N, ncol=K) # generate independent standard normals
         if(K == 1){
           theta <- theta * sqrt(lambda) # scale to have appropriate variance
-          X_new <- theta %*% t(phi) # simulate new functions
+          X_new <- crossprod(theta, phi) # simulate new functions
         }else{
           theta <- theta %*% diag(sqrt(lambda)) # scale to have appropriate variance
-          X_new <- theta %*% t(phi) # simulate new functions
+          X_new <- crossprod(theta, phi) # simulate new functions
         }
         x_sample <- X_new + t(fit_fpca$mu %o% rep(1,N)) # add back in the mean function
-        Sigma <- apply(x_sample, 2, var)
+        Sigma_sd <- Rfast::colVars(x_sample, std = TRUE, na.rm = FALSE) # standard deviation: apply(x_sample, 2, sd)
         x_mean <- colMeans(est_bs)
         un <- rep(NA, N)
         for(j in 1:N){
-          un[j] <- max(abs((x_sample[j,] - x_mean)/sqrt(Sigma)))
+          un[j] <- max(abs((x_sample[j,] - x_mean)/Sigma_sd ) )
         }
         qn[i] <- quantile(un, 0.95)
       }
