@@ -43,6 +43,10 @@
 #' @param G_return Logical, indicating whether to return (smoothed and trimmed)
 #' G = Cov(u(s_t), u(s_l)). Defaults to \code{FALSE}.
 #' @param num_boots Number of bootstrap samples. Defaults to 500.
+#' @param boot_type Bootstrap type (character): "cluster", "case", "wild", "reb", 
+#' "residual", "parametric", "semiparametric". \code{NULL} defaults to "cluster" 
+#' for non-gaussian responses and "wild" for gaussian responses. For small cluster 
+#' (n<=10) gaussian responses, defaults to "reb"  
 #' @param subj_ID Name of the variable that contains subject ID.
 #' @param num_cores Number of cores for parallelization.
 #' @param caic Whether to calculate cAIC.
