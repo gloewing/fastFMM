@@ -355,7 +355,7 @@ fui <- function(formula,
       # Fill in missing values of the raw data using FPCA
       if(length(which(is.na(data[,out_index]))) != 0){
         data[,out_index][which(is.na(data[,out_index]))] <-
-          fpca.face(as.matrix(data[,out_index]))$Yhat[which(is.na(data[,out_index]))]
+          suppressWarnings( refund::fpca.face(as.matrix(data[,out_index]))$Yhat[which(is.na(data[,out_index]))] )
       }
       
       # Derive variance estimates of random components: H(s), R(s)
@@ -1326,7 +1326,11 @@ fui <- function(formula,
           boot_type <- "cluster"
         }
       }
-        
+      
+      if(family != "gaussian" & boot_type %in% c("wild", "reb")){
+        stop('Non-gaussian outcomes only supported for some bootstrap procedures. \n Set argument `boot_type` to one of the following: "parametric", "semiparametric", "cluster", "case", "residual"')
+      }
+      message(paste("Bootstrapping Procedure:", as.character(boot_type)))
       # original way
       if(boot_type == "cluster"){
       # Do bootstrap
@@ -1351,7 +1355,7 @@ fui <- function(formula,
           fit_boot <- fui(formula = formula,
                           data = df2,
                           family = family,
-                          argvals = NULL,
+                          argvals = argvals,
                           var = FALSE,
                           parallel = FALSE,
                           silent = TRUE,
@@ -1368,7 +1372,6 @@ fui <- function(formula,
         }
         rm(fit_boot, df2, dat.ind, new_ids)
       }else{
-        if(family != "gaussian")   stop("Non-gaussian outcomes not-supported. Set `cluster_boot=TRUE` ")
         
         # lmeresampler() way
         B <- num_boots # use original amount do not constrain by number of unique resampled types here because we cannot construct rows to resample
@@ -1378,15 +1381,18 @@ fui <- function(formula,
         for(l in 1:L){
           pb$tick()
           data$Yl <- unclass(data[,out_index][,l])
-          if(l == 1){
-            fit_uni <- suppressMessages(lmer(formula = as.formula(paste0("Yl ~ ", model_formula[3])),
+          fit_uni <- suppressMessages(lmer(formula = as.formula(paste0("Yl ~ ", model_formula[3])),
                                            data = data,
                                            control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
-            fit_orig <- fit_uni # use this in refit() so we aren't constantly updating a refit model
-          }else{
-            fit_uni <- suppressMessages( lme4::refit(fit_orig, newresp = unclass(data[,out_index][,l]),
-                                                     control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))) )
-          }
+          # if(l == 1){
+          #   fit_uni <- suppressMessages(lmer(formula = as.formula(paste0("Yl ~ ", model_formula[3])),
+          #                                  data = data,
+          #                                  control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
+          #   fit_orig <- fit_uni # use this in refit() so we aren't constantly updating a refit model
+          # }else{
+          #   fit_uni <- suppressMessages( lme4::refit(fit_orig, newresp = unclass(data[,out_index][,l]),
+          #                                            control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))) )
+          # }
           
           set.seed(seed) # set seed to make sure bootstrap replicate (draws) are correlated across functional domains
           
@@ -1418,7 +1424,7 @@ fui <- function(formula,
           }
         }
         
-        suppressWarnings(rm(boot_sample, fit_uni, fit_orig))
+        suppressWarnings(rm(boot_sample, fit_uni))
         # smooth across functional domain
         if(!silent)   print("Step 3.2: Smooth Bootstrap estimates")
         for(b in 1:B){
@@ -1441,7 +1447,7 @@ fui <- function(formula,
       set.seed(seed) # set seed to make sure bootstrap replicate (draws) are correlated across functional domains
       for(i in 1:length(qn)){
         est_bs <- t(betaHat_boot[i,,])
-        fit_fpca <- refund::fpca.face(est_bs)
+        fit_fpca <- suppressWarnings( refund::fpca.face(est_bs) ) # suppress sqrt(Eigen$values) NaNs
         ## extract estimated eigenfunctions/eigenvalues
         phi <- fit_fpca$efunctions
         lambda <- fit_fpca$evalues
@@ -1453,17 +1459,17 @@ fui <- function(formula,
         theta <- matrix(rnorm(N*K), nrow=N, ncol=K) # generate independent standard normals
         if(K == 1){
           theta <- theta * sqrt(lambda) # scale to have appropriate variance
-          X_new <- crossprod(theta, phi) # simulate new functions
+          X_new <- tcrossprod(theta, phi) # simulate new functions
         }else{
           theta <- theta %*% diag(sqrt(lambda)) # scale to have appropriate variance
-          X_new <- crossprod(theta, phi) # simulate new functions
+          X_new <- tcrossprod(theta, phi) # simulate new functions
         }
         x_sample <- X_new + t(fit_fpca$mu %o% rep(1,N)) # add back in the mean function
         Sigma_sd <- Rfast::colVars(x_sample, std = TRUE, na.rm = FALSE) # standard deviation: apply(x_sample, 2, sd)
         x_mean <- colMeans(est_bs)
         un <- rep(NA, N)
         for(j in 1:N){
-          un[j] <- max(abs((x_sample[j,] - x_mean)/Sigma_sd ) )
+          un[j] <- max(abs((x_sample[j,] - x_mean)/Sigma_sd)) 
         }
         qn[i] <- quantile(un, 0.95)
       }
