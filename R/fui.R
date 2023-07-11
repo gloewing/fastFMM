@@ -159,7 +159,7 @@ fui <- function(formula,
     argvals <- 1:L
   }else{
     # when only using a subset of the functional domain
-    if(max(argvals) > length(out_index)) stop("Maximum index specified in argvals is greater than the total number of columns for the functional outcome")
+    if(max(argvals) > L) stop("Maximum index specified in argvals is greater than the total number of columns for the functional outcome")
     L <- length(argvals)
   }
   if(family == "gaussian" & analytic & L > 400)   message("Yowzaz! Your functional data is very dense! This may lead to slow runtimes. Consider subsampling along the functional domain (i.e., reduce columns of outcome matrix) or using bootstrap inference.") 
