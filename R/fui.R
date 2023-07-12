@@ -18,10 +18,10 @@
 #' instead of a vector. Each column of the matrix represents one location
 #' of the longitudinal functional observations on the domain.
 #' @param data A data frame containing all variables in formula
-#' @param family GLM family of the response. Defaults to \code{Gaussian}.
+#' @param family GLM family of the response. Defaults to \code{gaussian}.
 #' @param argvals A vector containing locations of observations on the
 #' functional domain. If not specified, a regular grid across the range of
-#' the domain is assumed.
+#' the domain is assumed. Currently only supported for bootstrap (\code{analytic=FALSE}).
 #' @param var Logical, indicating whether to calculate and return variance
 #' of the coefficient estimates. Defaults to \code{TRUE}.
 #' @param analytic Logical, indicating whether to use the analytic inference
@@ -154,7 +154,8 @@ fui <- function(formula,
   }else{ # observations stored as a matrix in one column
     L <- ncol(data[,out_index])
   }
-  if(is.null(argvals)){
+  if(analytic & !is.null(argvals))  message("'argvals' argument can only be used for bootstrap. `argvals' ignored: fitting model to ALL points on functional domain")
+  if(is.null(argvals) | analytic){
     # Set up the functional domain when not specified
     argvals <- 1:L
   }else{
@@ -313,6 +314,7 @@ fui <- function(formula,
   # Penalized splines smoothing and extract components (analytic)
   nknots <- min(round(L/2), nknots_min) ## number of knots for regression coefficients
   nknots_cov <- ifelse(is.null(nknots_min_cov), 35, nknots_min_cov) ## number of knots for covariance matrix
+  nknots_fpca <- min(round(L/2), 35)
   ## smoothing parameter, spline basis, penalty matrix (analytic)
   if(analytic == TRUE){
     p <- nrow(betaTilde) ## number of fixed effects parameters
@@ -355,7 +357,7 @@ fui <- function(formula,
       # Fill in missing values of the raw data using FPCA
       if(length(which(is.na(data[,out_index]))) != 0){
         data[,out_index][which(is.na(data[,out_index]))] <-
-          suppressWarnings( refund::fpca.face(as.matrix(data[,out_index]))$Yhat[which(is.na(data[,out_index]))] )
+          suppressWarnings( refund::fpca.face(as.matrix(data[,out_index]), knots = nknots_fpca)$Yhat[which(is.na(data[,out_index]))] )
       }
       
       # Derive variance estimates of random components: H(s), R(s)
@@ -1380,7 +1382,7 @@ fui <- function(formula,
         pb <- progress_bar$new(total = L)
         for(l in 1:L){
           pb$tick()
-          data$Yl <- unclass(data[,out_index][,l])
+          data$Yl <- unclass(data[,out_index][,argvals[l]])
           fit_uni <- suppressMessages(lmer(formula = as.formula(paste0("Yl ~ ", model_formula[3])),
                                            data = data,
                                            control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
@@ -1447,14 +1449,12 @@ fui <- function(formula,
       set.seed(seed) # set seed to make sure bootstrap replicate (draws) are correlated across functional domains
       for(i in 1:length(qn)){
         est_bs <- t(betaHat_boot[i,,])
-        fit_fpca <- suppressWarnings( refund::fpca.face(est_bs) ) # suppress sqrt(Eigen$values) NaNs
+        fit_fpca <- suppressWarnings( refund::fpca.face(est_bs, knots = nknots_fpca) ) # suppress sqrt(Eigen$values) NaNs
         ## extract estimated eigenfunctions/eigenvalues
         phi <- fit_fpca$efunctions
         lambda <- fit_fpca$evalues
         K <- length(fit_fpca$evalues)
-        # print(dim(phi))
-        # print(lambda)
-        # print(K)
+
         ## simulate random coefficients
         theta <- matrix(rnorm(N*K), nrow=N, ncol=K) # generate independent standard normals
         if(K == 1){
@@ -1474,21 +1474,17 @@ fui <- function(formula,
         qn[i] <- quantile(un, 0.95)
       }
       
-      if(!silent)  message("Complete! \n -Use plot_fui() function to plot estimates. \n -For more information, run the command:  ?plot_fui")
+      if(!silent)  message("Complete! \n -Use plot_fui() function to plot estimates \n -For more information, run the command:  ?plot_fui")
       
       return(list(betaHat = betaHat, betaHat.var = betaHat.var, qn = qn,
                   aic = AIC_mat, residuals = resids, bootstrap_samps = B,
                   argvals = argvals))
       
     }
-    
   }else{
-    
     # Only return betaHat when not calculating variance
-    if(!silent)  message("Complete! \n -Use plot_fui() function to plot estimates. \n -For more information, run the command:  ?plot_fui")
+    if(!silent)  message("Complete! \n -Use plot_fui() function to plot estimates \n -For more information, run the command:  ?plot_fui")
     
     return(list(betaHat = betaHat, argvals = argvals))
-    
   }
-  
 }
