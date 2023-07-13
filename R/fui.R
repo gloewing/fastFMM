@@ -154,7 +154,7 @@ fui <- function(formula,
   }else{ # observations stored as a matrix in one column
     L <- ncol(data[,out_index])
   }
-  if(analytic & !is.null(argvals))  message("'argvals' argument can only be used for bootstrap. `argvals' ignored: fitting model to ALL points on functional domain")
+  if(analytic & !is.null(argvals) & var)  message("'argvals' argument can only be used for bootstrap. `argvals' ignored: fitting model to ALL points on functional domain")
   if(is.null(argvals) | analytic){
     # Set up the functional domain when not specified
     argvals <- 1:L
@@ -163,7 +163,7 @@ fui <- function(formula,
     if(max(argvals) > L) stop("Maximum index specified in argvals is greater than the total number of columns for the functional outcome")
     L <- length(argvals)
   }
-  if(family == "gaussian" & analytic & L > 400)   message("Yowzaz! Your functional data is very dense! This may lead to slow runtimes. Consider subsampling along the functional domain (i.e., reduce columns of outcome matrix) or using bootstrap inference.") 
+  if(family == "gaussian" & analytic & L > 400 & var)   message("Yowzaz! Your functional data is very dense! This may lead to slow runtimes. Consider subsampling along the functional domain (i.e., reduce columns of outcome matrix) or using bootstrap inference.") 
   
   # Create a matrix to store AICs
   AIC_mat <- matrix(NA, nrow = L, ncol = 2)
