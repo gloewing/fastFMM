@@ -3,7 +3,6 @@
 export(fui)
 export(plot_fui)
 import(Matrix)
-import(arrangements)
 import(cAIC4)
 import(dplyr)
 import(ggplot2)
