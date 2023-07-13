@@ -21,6 +21,8 @@ fui(
   residuals = FALSE,
   G_return = FALSE,
   num_boots = 500,
+  boot_type = NULL,
+  seed = 1,
   subj_ID = NULL,
   num_cores = NULL,
   caic = FALSE,
@@ -37,11 +39,11 @@ of the longitudinal functional observations on the domain.}
 
 \item{data}{A data frame containing all variables in formula}
 
-\item{family}{GLM family of the response. Defaults to \code{Gaussian}.}
+\item{family}{GLM family of the response. Defaults to \code{gaussian}.}
 
 \item{argvals}{A vector containing locations of observations on the
 functional domain. If not specified, a regular grid across the range of
-the domain is assumed.}
+the domain is assumed. Currently only supported for bootstrap (\code{analytic=FALSE}).}
 
 \item{var}{Logical, indicating whether to calculate and return variance
 of the coefficient estimates. Defaults to \code{TRUE}.}
@@ -75,6 +77,11 @@ unsmoothed LME. Defaults to \code{FALSE}.}
 G = Cov(u(s_t), u(s_l)). Defaults to \code{FALSE}.}
 
 \item{num_boots}{Number of bootstrap samples. Defaults to 500.}
+
+\item{boot_type}{Bootstrap type (character): "cluster", "case", "wild", "reb", 
+"residual", "parametric", "semiparametric". \code{NULL} defaults to "cluster" 
+for non-gaussian responses and "wild" for gaussian responses. For small cluster 
+(n<=10) gaussian responses, defaults to "reb"}
 
 \item{subj_ID}{Name of the variable that contains subject ID.}
 
@@ -127,6 +134,6 @@ Univariate Inference for Longitudinal Functional Models. \emph{Journal of
 Computational and Graphical Statistics}, 31(1), 219-230.
 }
 \author{
-Erjia Cui \email{cui00171@umn.edu}, Gabriel Loewinger
+Erjia Cui \email{ecui1@jhmi.edu}, Gabriel Loewinger
 \email{gloewinger@g.harvard.edu}
 }
