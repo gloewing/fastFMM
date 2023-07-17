@@ -8,7 +8,7 @@ Repository for the development version of the R Package `fastFMM`.
 
 ## Installation
 
-Alternatively, the development version of the $\texttt{R}$ Package `fastFMM` can be downloaded as follows:
+The development version of the $\texttt{R}$ Package `fastFMM` can be downloaded as follows:
 
 ```{R}
 library(devtools)
