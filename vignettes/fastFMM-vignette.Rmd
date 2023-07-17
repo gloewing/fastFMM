@@ -235,7 +235,7 @@ colMeans(mod1$aic)
 colMeans(mod2$aic)
 ```
 
-Since model 1 has a lower average `AIC`, one might wish to proceed with inference using that model.
+Since model 2 has a lower average `AIC`, one might wish to proceed with inference using that model.
 
 -   For any complex random effect structures (e.g., nested) or anytime more than one variable is specified on the righthand side of the `|` symbol in the random effects formula , the column name in the `data` data.frame corresponding to the subject-ID should be specified in the argument `subj_ID` to avoid any confusion. See the example below:
   
