@@ -24,7 +24,7 @@ For the usage and a tutorial on package functions, please refer to [fastFMM's Vi
 ## Repository Folders
 1) The 'R' folder contains the code of the package, including `fui.R` and `plot_fui.R`. The `plot_fui.R` is still under development and has not been widely tested.
 
-2) The 'vignettes' folder contains a vignette which shows how to use different arguments in the fui function.
+2) The 'vignettes' folder contains a vignette which shows how to use different arguments of the `fui` function.
 
 <br />
 
