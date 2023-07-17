@@ -200,7 +200,7 @@ mod <- fui(Y ~ treatment + # main effect of cue
 -   At times one might wish to analyze only a subset of the functional domain by, for example, downsampling the number of points of the functional outcome, or using only certain subintervals. This can be set by providing a vector of indices of which points of the functional outcome to use in the analysis using the `argvals` argument. For example, the following analyzes every 3rd point of the functional outcome.
 
 ```{r, eval = FALSE}
-Y_mat <- dat[,-seq(1,3)])
+Y_mat <- dat[,-seq(1,3)]
 L <- ncol(Y_mat) # number of columns of functional outcome
 
 mod <- fui(Y ~ treatment + # main effect of cue
@@ -212,8 +212,8 @@ mod <- fui(Y ~ treatment + # main effect of cue
 
 -   We may wish to compare model fit between multiple models. To speed this process up, we can turn off the full inference by setting `var = FALSE` and then use the `AIC` and `BIC` naturally outputted in the model objects.
 
-```{r, eval = FALSE}
-Y_mat <- dat[,-seq(1,3)])
+```{r}
+Y_mat <- dat[,-seq(1,3)]
 L <- ncol(Y_mat) # number of columns of functional outcome
 
 # model 1: random slope model
@@ -233,7 +233,7 @@ colMeans(mod1$aic)
 colMeans(mod2$aic)
 ```
 
-Since model 1 has a lower average `AIC`, one might wish to proceed with inference using that model.
+Since model 2 has a lower average `AIC`, one might wish to proceed with inference using that model.
 
 -   For any complex random effect structures (e.g., nested) or anytime more than one variable is specified on the righthand side of the `|` symbol in the random effects formula , the column name in the `data` data.frame corresponding to the subject-ID should be specified in the argument `subj_ID` to avoid any confusion. See the example below:
 
