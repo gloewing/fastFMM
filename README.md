@@ -30,4 +30,4 @@ For the usage and a tutorial on package functions, please refer to [fastFMM's Vi
 
 ## Dataset Links
 
-The example data set is available in the 'vignettes' folder under the name of 'time_series.csv'.
+The example data set is available in the 'vignettes' folder under the name 'time_series.csv'.
