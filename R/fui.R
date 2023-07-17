@@ -1485,6 +1485,6 @@ fui <- function(formula,
     # Only return betaHat when not calculating variance
     if(!silent)  message("Complete! \n -Use plot_fui() function to plot estimates \n -For more information, run the command:  ?plot_fui")
     
-    return(list(betaHat = betaHat, argvals = argvals))
+    return(list(betaHat = betaHat, argvals = argvals, aic = AIC_mat))
   }
 }
