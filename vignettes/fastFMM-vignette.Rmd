@@ -1,15 +1,14 @@
 ---
-title: "fastFMM Vignette: Fast Functional Mixed Models using Fast Univariate Inference"
-author: Gabriel Loewinger, Erjia Cui
-# - National Institute of Mental Health (NIH), University of Minnesota
+title: 'fastFMM Vignette: Fast Functional Mixed Models using Fast Univariate Inference'
+author: "Gabriel Loewinger, Erjia Cui"
 date: "`r Sys.Date()`"
 output:
-  pdf_document:
+  html_document:
+    df_print: paged
   toc: yes
-vignette: >
-  %\VignetteIndexEntry{fastFMM Vignette}
-  %\VignetteEncoding{UTF-8}
-  %\VignetteEngine{knitr::rmarkdown} 
+  pdf_document: null
+vignette: "%\\VignetteIndexEntry{fastFMM Vignette} %\\VignetteEncoding{UTF-8} %\\VignetteEngine{knitr::rmarkdown}
+  \n"
 ---
   
 ```{r setup, echo = FALSE, eval = FALSE}
@@ -191,7 +190,7 @@ Unless specified otherwise, `fui()` assumes a Gaussian family and provides infer
 
 ```{r, eval = FALSE}
 mod <- fui(Y ~ treatment + # main effect of cue
-              (treatment | id),  # random intercept
+              (treatment | id),  # random slope & intercept
               data = dat,
               parallel = TRUE,
               analytic = FALSE) # bootstrap
@@ -206,7 +205,7 @@ Y_mat <- dat[,-seq(1,3)])
 L <- ncol(Y_mat) # number of columns of functional outcome
 
 mod <- fui(Y ~ treatment + # main effect of cue
-              (treatment | id),  # random intercept
+              (treatment | id),  # random slope & intercept
               data = dat,
               analytic = FALSE,
               argvals = seq(from = 1, to = L, by = 3) ) # every 3rd data point
@@ -220,7 +219,7 @@ L <- ncol(Y_mat) # number of columns of functional outcome
 
 # model 1: random slope model
 mod1 <- fui(Y ~ treatment + # main effect of cue
-              (treatment | id),  # random intercept
+              (treatment | id),  # random slope & intercept
               data = dat,
               var = FALSE) 
 
@@ -235,13 +234,13 @@ colMeans(mod1$aic)
 colMeans(mod2$aic)
 ```
 
-Since model 2 has a lower average `AIC`, one might wish to proceed with inference using that model.
+Since model 1 has a lower average `AIC`, one might wish to proceed with inference using that model.
 
 -   For any complex random effect structures (e.g., nested) or anytime more than one variable is specified on the righthand side of the `|` symbol in the random effects formula , the column name in the `data` data.frame corresponding to the subject-ID should be specified in the argument `subj_ID` to avoid any confusion. See the example below:
   
 ```{r, eval = FALSE}
 mod <- fui(Y ~ treatment + # main effect of cue
-              (treatment | id/trial),  # random intercept
+              (treatment | id/trial),  # random slope & intercept: varies across trials
               data = dat,
               subj_ID = "id") 
 ```
@@ -252,7 +251,7 @@ After fitting a model, one can quickly visualize estimates and 95% confidence in
 
 ```{r, eval = FALSE}
 mod <- fui(Y ~ treatment + # main effect of cue
-              (treatment | id),  # random intercept
+              (treatment | id), # random slope & intercept
               data = dat) 
 
 fui_plot <- plot_fui(mod)
@@ -284,14 +283,14 @@ head(fui_plot$treatment)
 ## Advanced Bootstrapping
 
 We offer diverse bootstrapping functionality:
-* Set the argument `analytic=FALSE` for a bootstrap
-  + Specify the type of bootstrap with the `boot_type` argument:
-    - `boot_type` "wild", "reb", "case", "residual": are fit through the          [lmeresampler](https://CRAN.R-project.org/package=lmeresampler) package. See their CRAN [vignette](https://cran.r-project.org/web/packages/lmeresampler/vignettes/lmeresampler-vignette.html) for more information. Note that we automatically use "wild" with arguments, hccme="hc2" and aux.dist="mammen". For "reb" we use reb_type=0. Call of these can be used for gaussian. Only "case" and "residual" can be used for non-gaussian responses.
+
+  * Set the argument `analytic=FALSE` for a bootstrap
+    + Specify the type of bootstrap with the `boot_type` argument:
+      - `boot_type` "wild", "reb", "case", "residual": are fit through the          [lmeresampler](https://CRAN.R-project.org/package=lmeresampler) package. See their CRAN [vignette](https://cran.r-project.org/web/packages/lmeresampler/vignettes/lmeresampler-vignette.html) for more information. Note that we automatically use "wild" with arguments, hccme="hc2" and aux.dist="mammen". For "reb" we use reb_type=0. All of these can be used for gaussian. Only "case" and "residual" can be used for non-gaussian responses.
     - `boot_type` "cluster": is a cluster-bootstrap fit manually only in our package and is currently the only version that allows for parallelization. In principle, this should produce comparable results to "case" (implemented through `lmeresampler`) but if parallelization is not used, we anticipate "case" may be substantially faster. This can be used for both gaussian and non-gaussian responses.
     - `boot_type` "parametric" and "semiparametric": are fit through the `bootMer()` function in [lme4](https://rdrr.io/cran/lme4/man/bootMer.html). Both options can be used for gaussian and non-gaussian responses. See their documentation for more information.
     - `boot_type` defaults to `NULL`. If left unspecified as `NULL`, `fui()` will default to using "cluster" for non-gaussian responses. For gaussian responses, it defaults to "reb" if the number of clusters $n \leq 10$ and "wild" otherwise.
   + The number of bootstrap replicates can be set with the argument `boot`. This defaults to `boot=500`.
-  + [lmeresampler: Bootstrap Methods for Nested Linear Mixed-Effects Models](https://CRAN.R-project.org/package=lmeresampler)
 
 ## Additional `fui()` arguments
 
