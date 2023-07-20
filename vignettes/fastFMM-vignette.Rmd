@@ -47,7 +47,7 @@ knit_hooks$set(output = function(x, options) {
 
 # Introduction
 
-`fastFMM` is a fast toolkit for fitting functional mixed models using the fast univariate inference (FUI) method proposed in [Cui et al. (2022)](https://doi.org/10.1080/10618600.2021.1950006). Assume the multi-level/longitudinal functional data are of the type $Y_{ij}(s)$ on a grid $\{s_1, ..., s_L\}$ of the compact functional domain $\mathcal{S}$. Denote by $i = 1, 2, ..., I$ the index of subject, and $j = 1, 2, ..., J_i$ the index of longitudinal visit at time $t_{ij}$. In addition to $Y_{ij}(s)$, for each visit of each subject, we also observe $\boldsymbol{X}_{ij} = [X_{ij1}, X_{ij2}, ..., X_{ijp}]^T \in \mathbb{R}^p$ as the fixed and $\boldsymbol{Z}_{ij} = [Z_{ij1}, Z_{ij2}, ..., Z_{ijq}]^T \in \mathbb{R}^q$ as the random effects variables. Denote by $g(\cdot)$ a pre-specified link function and $EF(\cdot)$ the exponential family distribution. A longitudinal function-on-scalar regression model has the following form:
+`fastFMM` is a fast toolkit for fitting functional mixed models using the fast univariate inference (FUI) method proposed in [Cui et al. (2022)](https://doi.org/10.1080/10618600.2021.1950006). Assume the multi-level/longitudinal functional data are of the type $Y_{ij}(s)$ on a grid $\{s_1, ..., s_L\}$ of the compact functional domain ${S}$. Denote by $i = 1, 2, ..., I$ the index of subject, and $j = 1, 2, ..., J_i$ the index of longitudinal visit at time $t_{ij}$. In addition to $Y_{ij}(s)$, for each visit of each subject, we also observe $\boldsymbol{X}_{ij} = [X_{ij1}, X_{ij2}, ..., X_{ijp}]^T \in \mathbb{R}^p$ as the fixed and $\boldsymbol{Z}_{ij} = [Z_{ij1}, Z_{ij2}, ..., Z_{ijq}]^T \in \mathbb{R}^q$ as the random effects variables. Denote by $g(\cdot)$ a pre-specified link function and $EF(\cdot)$ the exponential family distribution. A longitudinal function-on-scalar regression model has the following form:
   
 $$
 \begin{aligned} 
@@ -59,7 +59,7 @@ The model above is also called Functional Mixed Model (FMM) in the Functional Da
 
 FUI consists of the following three steps:
   
-1.  At each location $s_l \in \mathcal{S}, l = 1, 2, ..., L$, fit a pointwise generalized linear mixed model (GLMM):
+1.  At each location $s_l \in {S}, l = 1, 2, ..., L$, fit a pointwise generalized linear mixed model (GLMM):
   
 $$
 \begin{aligned} 
