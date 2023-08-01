@@ -8,11 +8,11 @@ fui(
   formula,
   data,
   family = "gaussian",
-  argvals = NULL,
   var = TRUE,
   analytic = TRUE,
   parallel = FALSE,
   silent = FALSE,
+  argvals = NULL,
   nknots_min = NULL,
   nknots_min_cov = 35,
   smooth_method = "GCV.Cp",
@@ -41,10 +41,6 @@ of the longitudinal functional observations on the domain.}
 
 \item{family}{GLM family of the response. Defaults to \code{gaussian}.}
 
-\item{argvals}{A vector containing locations of observations on the
-functional domain. If not specified, a regular grid across the range of
-the domain is assumed. Currently only supported for bootstrap (\code{analytic=FALSE}).}
-
 \item{var}{Logical, indicating whether to calculate and return variance
 of the coefficient estimates. Defaults to \code{TRUE}.}
 
@@ -57,17 +53,22 @@ Defaults to \code{FALSE}.}
 \item{silent}{Logical, indicating whether to show descriptions of each step.
 Defaults to \code{FALSE}.}
 
+\item{argvals}{A vector containing locations of observations on the
+functional domain. If not specified, a regular grid across the range of
+the domain is assumed. Currently only supported for bootstrap (\code{analytic=FALSE}).}
+
 \item{nknots_min}{Minimal number of knots in the penalized smoothing for the regression coefficients.
-Defaults to \code{NULL} which then uses L/2.}
+Defaults to \code{NULL}, which then uses L/2 where L is the dimension of the functional domain.}
 
 \item{nknots_min_cov}{Minimal number of knots in the penalized smoothing for the covariance matrices.
 Defaults to \code{35}.}
 
-\item{smooth_method}{How to select smoothing penalty. Defaults to \code{"GCV.Cp"}}
+\item{smooth_method}{How to select smoothing parameter in step 2. Defaults to \code{"GCV.Cp"}}
 
-\item{splines}{Spline type from gam package. Defaults to \code{"tp"}}
+\item{splines}{Spline type used for penalized splines smoothing. We use the same syntax
+as the mgcv package. Defaults to \code{"tp"}}
 
-\item{design_mat}{Logical, indicating whether to return design matrix.
+\item{design_mat}{Logical, indicating whether to return the design matrix.
 Defaults to \code{FALSE}}
 
 \item{residuals}{Logical, indicating whether to save residuals from
@@ -76,28 +77,28 @@ unsmoothed LME. Defaults to \code{FALSE}.}
 \item{G_return}{Logical, indicating whether to return (smoothed and trimmed)
 G = Cov(u(s_t), u(s_l)). Defaults to \code{FALSE}.}
 
-\item{num_boots}{Number of bootstrap samples. Defaults to 500.}
+\item{num_boots}{Number of samples when using bootstrap inference. Defaults to 500.}
 
-\item{boot_type}{Bootstrap type (character): "cluster", "case", "wild", "reb", 
-"residual", "parametric", "semiparametric". \code{NULL} defaults to "cluster" 
-for non-gaussian responses and "wild" for gaussian responses. For small cluster 
+\item{boot_type}{Bootstrap type (character): "cluster", "case", "wild", "reb",
+"residual", "parametric", "semiparametric". \code{NULL} defaults to "cluster"
+for non-gaussian responses and "wild" for gaussian responses. For small cluster
 (n<=10) gaussian responses, defaults to "reb"}
 
 \item{subj_ID}{Name of the variable that contains subject ID.}
 
 \item{num_cores}{Number of cores for parallelization.}
 
-\item{caic}{Whether to calculate cAIC.}
+\item{caic}{Logical, indicating whether to calculate cAIC. Defaults to \code{FALSE}.}
 
 \item{REs}{Logical, indicating whether to return random effect estimates.
 Defaults to \code{FALSE}.}
 
 \item{non_neg}{0 - no non-negativity constrains, 1 - non-negativity
 constraints on every coefficient for variance, 2 - non-negativity on
-average of coefficents for 1 variance term.}
+average of coefficents for 1 variance term. Defaults to 0.}
 
 \item{MoM}{Method of moments estimator. Default to 2. 1 should only be used
-for large datasets.}
+for extremely large datasets.}
 }
 \value{
 A list containing:
@@ -108,25 +109,38 @@ A list containing:
 \item{...}{...}
 }
 \description{
-Fit a longitudinal function-on-scalar regression for longitudinal
+Fit a function-on-scalar regression model for longitudinal
 functional outcomes and scalar predictors using the Fast Univariate
 Inference (FUI) approach (Cui et al. 2022).
 }
 \details{
 The FUI approach comprises of three steps:
-1. At each location of the functional domain, fit a univariate mixed model
+\enumerate{
+\item Fit a univariate mixed model at each location of the functional domain,
 and obtain raw estimates from massive models;
-2. Smooth the raw estimates along the functional domain;
-3. Obtain the pointwise and joint confidence bands using an analytic
-approach for Gaussian data or bootstrap for general distributions.
+\item Smooth the raw estimates along the functional domain;
+\item Obtain the pointwise and joint confidence bands using an analytic
+approach for Gaussian data or Bootstrap for general distributions.
+}
+
 For more information on each step, please refer to the FUI paper
 by Cui et al. (2022).
 }
 \examples{
 library(refund)
 data(DTI)
-fit_dti <- fui(formula = cca ~ case + visit + sex + (visit | ID),
-               data = DTI, family = "gaussian", var = TRUE)
+
+## random intercept only
+fit_dti_1 <- fui(cca ~ case + visit + sex + (1 | ID),
+                 data = DTI)
+
+## random intercept random slope
+fit_dti_2 <- fui(cca ~ case + visit + sex + (visit | ID),
+                 data = DTI)
+
+## random intercept random slope, no variance (only step 1 and 2)
+fit_dti_2.1 <- fui(cca ~ case + visit + sex + (visit | ID),
+                   data = DTI, var = FALSE)
 }
 \references{
 Cui, E., Leroux, A., Smirnova, E., Crainiceanu, C. (2022). Fast
@@ -134,6 +148,6 @@ Univariate Inference for Longitudinal Functional Models. \emph{Journal of
 Computational and Graphical Statistics}, 31(1), 219-230.
 }
 \author{
-Erjia Cui \email{ecui1@jhmi.edu}, Gabriel Loewinger
-\email{gloewinger@g.harvard.edu}
+Erjia Cui \email{ecui@umn.edu}, Gabriel Loewinger
+\email{gloewinger@gmail.com}
 }
