@@ -2,45 +2,50 @@
 % Please edit documentation in R/plot_fui.R
 \name{plot_fui}
 \alias{plot_fui}
-\title{Plot the results from FUI}
+\title{Default FUI plotting}
 \usage{
 plot_fui(
   fuiobj,
   num_row = NULL,
+  xlab = "Functional Domain",
+  title_names = NULL,
+  ylim = NULL,
   align_x = NULL,
   x_rescale = 1,
-  title_names = NULL,
   y_val_lim = 1.1,
-  ylim = NULL,
   y_scal_orig = 0.05,
-  xlab = "Time (s)"
+  return = FALSE
 )
 }
 \arguments{
 \item{fuiobj}{A object returned from the \code{fui} function}
 
-\item{num_row}{An integer that specifies the number of rows the plots will be displayed on. Defaults to p/2.}
+\item{num_row}{An integer that specifies the number of rows the plots will be displayed on. Defaults to p/2, where p is the number of predictors.}
 
-\item{align_x}{A scalar: aligns the plot to a certain point on the functional domain and sets this as 0. This is particularly useful if time is the functional domain. Defaults to 0.}
-
-\item{x_rescale}{A scalar: rescales the x-axis of plots which is especially useful if time is the functional domain and one wishes to, for example, account for the sampling rate. Defaults to 1.}
+\item{xlab}{A string that specifies the x-axis title (i.e., for the functional domain). Defaults to ``Functional Domain''}
 
 \item{title_names}{A vector of strings that has length equal to number of covariates (plus intercept if relevant). Allows one to change the titles of the plots. Defaults to NULL which uses the variable names in the dataframe for titles.}
 
-\item{y_val_lim}{A positive scalar that extends the y-axis by a factor for visual purposes. Defaults to $1.10$. Typically does not require adjustment.}
-
 \item{ylim}{A 2-dimensional vector that specifies limits of the y-axis in plots.}
+
+\item{align_x}{A scalar: aligns the plot to a certain point on the functional domain and sets this as 0. This is particularly useful if the functional domain is time. Defaults to 0.}
+
+\item{x_rescale}{A scalar: rescales the x-axis of plots which is especially useful if time is the functional domain and one wishes to, for example, account for the sampling rate. Defaults to 1.}
+
+\item{y_val_lim}{A positive scalar that extends the y-axis by a factor for visual purposes. Defaults to $1.10$. Typically does not require adjustment.}
 
 \item{y_scal_orig}{A positive scalar that determines how much to reduce the length of the y-axis on the bottom. Defaults to 0.05. Typically does not require adjustment.}
 
-\item{xlab}{A string that specifies the x-axis title (i.e., for the functional domain). Defaults to ``Time (s)''}
+\item{return}{Logical, indicating whether to return the data frame with the coefficient estimates and 95\% confidence intervals (CIs). Defaults to \code{FALSE}.}
 }
 \value{
-A list where each element is a dataframe with the coefficient estimates and 95% confidence intervals (CIs). Also automatically plots estimates and CIs.
+Plots of point estimates and CIs. If \code{return = TRUE}, also returns
+a list where each element is a data frame with the coefficient estimates and 95\% confidence intervals (CIs).
 }
 \description{
-Plot the estimated fixed effects from the Fast Univariate
-Inference (FUI) approach.
+Take a fitted \code{fui} object produced by \code{fastFMM::fui()} and
+plot the point estimates of fixed effects. When variance was calculated, the plot
+function also returns 95\% pointwise and joint confidence intervals.
 }
 \examples{
 library(refund)
@@ -55,5 +60,5 @@ Univariate Inference for Longitudinal Functional Models. \emph{Journal of
 Computational and Graphical Statistics}, 31(1), 219-230.
 }
 \author{
-Gabriel Loewinger \email{gloewinger@gmail.com}, Erjia Cui \email{cui00171@umn.edu},
+Gabriel Loewinger \email{gloewinger@gmail.com}, Erjia Cui \email{ecui@umn.edu},
 }
