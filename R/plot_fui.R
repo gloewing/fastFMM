@@ -1,21 +1,24 @@
-#' Plot the results from FUI
+#' Default FUI plotting
 #'
-#' Plot the estimated fixed effects from the Fast Univariate
-#' Inference (FUI) approach.
+#' Take a fitted \code{fui} object produced by \code{fastFMM::fui()} and
+#' plot the point estimates of fixed effects. When variance was calculated, the plot
+#' function also returns 95\% pointwise and joint confidence intervals.
 #'
 #' @param fuiobj A object returned from the \code{fui} function
-#' @param num_row An integer that specifies the number of rows the plots will be displayed on. Defaults to p/2.
-#' @param align_x A scalar: aligns the plot to a certain point on the functional domain and sets this as 0. This is particularly useful if time is the functional domain. Defaults to 0.
-#' @param x_rescale A scalar: rescales the x-axis of plots which is especially useful if time is the functional domain and one wishes to, for example, account for the sampling rate. Defaults to 1.
+#' @param num_row An integer that specifies the number of rows the plots will be displayed on. Defaults to p/2, where p is the number of predictors.
+#' @param xlab A string that specifies the x-axis title (i.e., for the functional domain). Defaults to ``Functional Domain''
 #' @param title_names A vector of strings that has length equal to number of covariates (plus intercept if relevant). Allows one to change the titles of the plots. Defaults to NULL which uses the variable names in the dataframe for titles.
-#' @param y_val_lim A positive scalar that extends the y-axis by a factor for visual purposes. Defaults to $1.10$. Typically does not require adjustment.
 #' @param ylim A 2-dimensional vector that specifies limits of the y-axis in plots.
+#' @param align_x A scalar: aligns the plot to a certain point on the functional domain and sets this as 0. This is particularly useful if the functional domain is time. Defaults to 0.
+#' @param x_rescale A scalar: rescales the x-axis of plots which is especially useful if time is the functional domain and one wishes to, for example, account for the sampling rate. Defaults to 1.
+#' @param y_val_lim A positive scalar that extends the y-axis by a factor for visual purposes. Defaults to $1.10$. Typically does not require adjustment.
 #' @param y_scal_orig A positive scalar that determines how much to reduce the length of the y-axis on the bottom. Defaults to 0.05. Typically does not require adjustment.
-#' @param xlab A string that specifies the x-axis title (i.e., for the functional domain). Defaults to ``Time (s)''
+#' @param return Logical, indicating whether to return the data frame with the coefficient estimates and 95\% confidence intervals (CIs). Defaults to \code{FALSE}.
 #'
-#' @return A list where each element is a dataframe with the coefficient estimates and 95% confidence intervals (CIs). Also automatically plots estimates and CIs.
+#' @return Plots of point estimates and CIs. If \code{return = TRUE}, also returns
+#' a list where each element is a data frame with the coefficient estimates and 95\% confidence intervals (CIs).
 #'
-#' @author Gabriel Loewinger \email{gloewinger@@gmail.com}, Erjia Cui \email{cui00171@@umn.edu},
+#' @author Gabriel Loewinger \email{gloewinger@@gmail.com}, Erjia Cui \email{ecui@@umn.edu},
 #'
 #' @references Cui, E., Leroux, A., Smirnova, E., Crainiceanu, C. (2022). Fast
 #' Univariate Inference for Longitudinal Functional Models. \emph{Journal of
@@ -35,13 +38,14 @@
 
 plot_fui <- function(fuiobj,
                      num_row = NULL,
+                     xlab = "Functional Domain",
+                     title_names = NULL,
+                     ylim = NULL,
                      align_x = NULL,
                      x_rescale = 1,
-                     title_names = NULL,
                      y_val_lim = 1.1,
-                     ylim = NULL,
                      y_scal_orig = 0.05,
-                     xlab = "Time (s)"
+                     return = FALSE
                      ){
 
   num_var <- nrow(fuiobj$betaHat) ## number of variables to plot
@@ -64,7 +68,7 @@ plot_fui <- function(fuiobj,
         theme_classic() +
         theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
         geom_line(aes(x = s / x_rescale - align/x_rescale - 1/x_rescale, y = beta, color = "Estimate"),
-                  data = beta.hat.plt, alpha = 1, size = 1) +
+                  data = beta.hat.plt, alpha = 1, linewidth = 1) +
         geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
         scale_colour_manual(name="", values=c("Estimate"="black")) +
         labs(x = xlab, y = bquote(paste(beta[.(r-1)], "(s)")),
@@ -88,7 +92,7 @@ plot_fui <- function(fuiobj,
         geom_ribbon(aes(x = s / x_rescale - align/x_rescale - 1/x_rescale, ymax = upper, ymin = lower),
                     data = beta.hat.plt, fill = "gray10", alpha = 0.4) +
         geom_line(aes(x = s / x_rescale - align/x_rescale - 1/x_rescale, y = beta, color = "Estimate"),
-                  data = beta.hat.plt, alpha = 1, size = 1) +
+                  data = beta.hat.plt, alpha = 1, linewidth = 1) +
         scale_colour_manual(name="", values=c("Estimate"="black")) +
         labs(x = xlab, y = bquote(paste(beta[.(r-1)], "(s)")),
              title = title_names[r]) +
@@ -101,8 +105,13 @@ plot_fui <- function(fuiobj,
       plot_list[[r]] <- plot_list[[r]] + coord_cartesian(ylim = ylim)
       ylimit <- ylim
     }else{
-      ylimit <- c(min(beta.hat.plt$lower.joint), max(beta.hat.plt$upper.joint)) #layer_scales(plot_list[[r]])$y$range$range
-      y_adjust <- y_scal_orig * (max(beta.hat.plt$upper.joint) - min(beta.hat.plt$lower.joint)) #layer_scales(plot_list[[r]])$y$range$range
+      if(is.null(fuiobj$betaHat.var)){
+        ylimit <- c(min(beta.hat.plt$beta), max(beta.hat.plt$beta))
+        y_adjust <- y_scal_orig * (max(beta.hat.plt$beta) - min(beta.hat.plt$beta))
+      }else{
+        ylimit <- c(min(beta.hat.plt$lower.joint), max(beta.hat.plt$upper.joint)) #layer_scales(plot_list[[r]])$y$range$range
+        y_adjust <- y_scal_orig * (max(beta.hat.plt$upper.joint) - min(beta.hat.plt$lower.joint)) #layer_scales(plot_list[[r]])$y$range$range
+      }
       ylimit[1] <- ylimit[1] - y_adjust # just scale bottom because top is scaled below
     }
 
@@ -127,22 +136,26 @@ plot_fui <- function(fuiobj,
 
     }
 
-    if(max(beta.hat.plt$upper.joint) > 0 & min(beta.hat.plt$lower.joint) < 0 &
-              !is.null(fuiobj$betaHat.var)){
-      plot_list[[r]] <- plot_list[[r]] +
-        geom_segment(aes_string(x=xlim[1] - x_range, xend=xlim[2] + x_range,
-                         y=0,yend=0), inherit.aes = TRUE,
-                     color = "black", lwd=0.5, alpha = 0.75, linetype = "dashed")
+    if(!is.null(fuiobj$betaHat.var)){
+      if(max(beta.hat.plt$upper.joint) > 0 & min(beta.hat.plt$lower.joint) < 0){
+        plot_list[[r]] <- plot_list[[r]] +
+          geom_segment(aes_string(x=xlim[1] - x_range, xend=xlim[2] + x_range,
+                                  y=0,yend=0), inherit.aes = TRUE,
+                       color = "black", lwd=0.5, alpha = 0.75, linetype = "dashed")
+      }
+      colnames(beta.hat.plt) <- c("s", "beta.hat", "CI.lower.pointwise", "CI.upper.pointwise", "CI.lower.joint", "CI.upper.joint")
+    }else{
+      colnames(beta.hat.plt) <- c("s", "beta.hat")
     }
 
-    colnames(beta.hat.plt) <- c("s", "beta.hat", "CI.lower.pointwise", "CI.upper.pointwise", "CI.lower.joint", "CI.upper.joint")
     res_list[[r]] <- beta.hat.plt # save data frame associated with rth fixed effect
 
   }
 
   do.call("grid.arrange", c(plot_list, nrow = num_row)) # plot
 
-  return(res_list)
+  if(return == TRUE) return(res_list)
+
 }
 
 
