@@ -1041,6 +1041,7 @@ fui <- function(formula,
         ## smooth GHat
         GHat <- GTilde
         for(r in 1:nrow(HHat)){
+          diag(GTilde[r,,]) <- HHat[r,]
           GHat[r,,] <- fbps_cov(GTilde[r,,], search.length = 100, knots = nknots_cov)$Yhat # , knots = nknots_min
         }
         diag(GHat[r,,])[which(diag(GHat[r,,]) < 0)] <- diag(GTilde[r,,])[which(diag(GHat[r,,]) < 0)]
