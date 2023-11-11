@@ -84,6 +84,9 @@ G = Cov(u(s_t), u(s_l)). Defaults to \code{FALSE}.}
 for non-gaussian responses and "wild" for gaussian responses. For small cluster
 (n<=10) gaussian responses, defaults to "reb"}
 
+\item{seed}{Numeric value used to make sure bootstrap replicate (draws) are
+correlated across functional domains for certain bootstrap approach}
+
 \item{subj_ID}{Name of the variable that contains subject ID.}
 
 \item{num_cores}{Number of cores for parallelization.}
