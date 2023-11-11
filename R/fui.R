@@ -51,6 +51,8 @@
 #' "residual", "parametric", "semiparametric". \code{NULL} defaults to "cluster"
 #' for non-gaussian responses and "wild" for gaussian responses. For small cluster
 #' (n<=10) gaussian responses, defaults to "reb"
+#' @param seed Numeric value used to make sure bootstrap replicate (draws) are
+#' correlated across functional domains for certain bootstrap approach
 #' @param subj_ID Name of the variable that contains subject ID.
 #' @param num_cores Number of cores for parallelization.
 #' @param caic Logical, indicating whether to calculate cAIC. Defaults to \code{FALSE}.
@@ -189,11 +191,11 @@ fui <- function(formula,
   unimm <- function(l){
     data$Yl <- unclass(data[,out_index][,l])
     if(family == "gaussian"){
-      fit_uni <- suppressMessages(lmer(formula = as.formula(paste0("Yl ~ ", model_formula[3])),
+      fit_uni <- suppressMessages(lmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
                                        data = data,
                                        control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
     }else{
-      fit_uni <- suppressMessages(glmer(formula = as.formula(paste0("Yl ~ ", model_formula[3])),
+      fit_uni <- suppressMessages(glmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
                                         data = data,
                                         family = family,
                                         control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
@@ -287,16 +289,16 @@ fui <- function(formula,
     ## fit a fake model to obtain design matrix
     data$Yl <- unclass(data[,out_index][,1])
     if(family == "gaussian"){
-      fit_uni <- suppressMessages(lmer(formula = as.formula(paste0("Yl ~ ", model_formula[3])),
+      fit_uni <- suppressMessages(lmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
                                        data = data,
                                        control = lmerControl(optimizer = "bobyqa")))
     }else{
-      fit_uni <- suppressMessages(glmer(formula = as.formula(paste0("Yl ~ ", model_formula[3])),
+      fit_uni <- suppressMessages(glmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
                                         data = data,
                                         family = family,
                                         control = glmerControl(optimizer = "bobyqa")))
     }
-    designmat <- model.matrix(fit_uni) ## model design matrix
+    designmat <- stats::model.matrix(fit_uni) ## model design matrix
     name_random <- as.data.frame(VarCorr(fit_uni))[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3])),3]
     ## names of random effects
     RE_table <- as.data.frame(VarCorr(fit_uni))
@@ -377,10 +379,10 @@ fui <- function(formula,
       }
 
       # Derive variance estimates of random components: H(s), R(s)
-      HHat <- t(apply(sigmausqHat, 1, function(b) smooth.spline(x = argvals, y = b)$y))
+      HHat <- t(apply(sigmausqHat, 1, function(b) stats::smooth.spline(x = argvals, y = b)$y))
       ind_var <- which(grepl("var", rownames(HHat)) == TRUE) ## index of variance
       HHat[ind_var,][which(HHat[ind_var,] < 0)] <- 0
-      RHat <- t(apply(sigmaesqHat, 1, function(b) smooth.spline(x = argvals, y = b)$y))
+      RHat <- t(apply(sigmaesqHat, 1, function(b) stats::smooth.spline(x = argvals, y = b)$y))
       RHat[which(RHat < 0)] <- 0
 
       # Derive covariance estimates of random components: G(s1,s2)
@@ -398,7 +400,7 @@ fui <- function(formula,
           d_temp_i <- d_temp[,i]
           res_temp <- GTilde[i,]
           for(j in 1:L){
-            res_temp[j] <- cov(d_temp_i, d_temp[,j], use = "pairwise.complete.obs") - bhatVdm[j]
+            res_temp[j] <- stats::cov(d_temp_i, d_temp[,j], use = "pairwise.complete.obs") - bhatVdm[j]
           }
           GTilde[i,] <- res_temp
         }
@@ -659,7 +661,7 @@ fui <- function(formula,
             knots <- (max(t)-min(t))*qs + min(t)
           }
           if(option=="quantile"){
-            knots <- as.vector(quantile(t,qs))
+            knots <- as.vector(stats::quantile(t,qs))
           }
 
           K <- length(knots)
@@ -978,10 +980,10 @@ fui <- function(formula,
           } ## end of search.grid
 
           if(search.grid == F){
-            fit = optim(0,fbps_gcv,method=method,control=control,
+            fit = stats::optim(0,fbps_gcv,method=method,control=control,
                         lower=lower[1],upper=upper[1])
 
-            fit = optim(c(fit$par,fit$par),fbps_gcv,method=method,control=control,
+            fit = stats::optim(c(fit$par,fit$par),fbps_gcv,method=method,control=control,
                         lower=lower[1],upper=upper[1])
             if(fit$convergence>0) {
               expression = paste("Smoothing failed! The code is:",fit$convergence)
@@ -1064,7 +1066,7 @@ fui <- function(formula,
       # fast block diagonal generator taken from Matrix package examples
       bdiag_m <- function(lmat) {
         ## Copyright (C) 2016 Martin Maechler, ETH Zurich
-        if(!length(lmat)) return(new("dgCMatrix"))
+        if(!length(lmat)) return(methods::new("dgCMatrix"))
         stopifnot(is.list(lmat), is.matrix(lmat[[1]]),
                   (k <- (d <- dim(lmat[[1]]))[1]) == d[2], # k x k
                   all(vapply(lmat, dim, integer(2)) == k)) # all of them
@@ -1073,7 +1075,7 @@ fui <- function(formula,
           stop("resulting matrix too large; would be  M x M, with M=", N*k)
         M <- as.integer(N * k)
         ## result: an   M x M  matrix
-        new("dgCMatrix", Dim = c(M,M),
+        methods::new("dgCMatrix", Dim = c(M,M),
             ## 'i :' maybe there's a faster way (w/o matrix indexing), but elegant?
             i = as.vector(matrix(0L:(M-1L), nrow=k)[, rep(seq_len(N), each=k)]),
             p = k * 0L:M,
@@ -1159,7 +1161,7 @@ fui <- function(formula,
           return(tcrossprod(edcomp$vectors[,1]) * edcomp$values[1])
         }else{
           # sum of outerproducts of eigenvectors scaled by eigenvalues for all positive eigenvalues
-          return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(Diagonal(x=edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), nc = q))
+          return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(Diagonal(x=edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
         }
       }
 
@@ -1299,7 +1301,7 @@ fui <- function(formula,
         Sigma <- as.matrix(S_scl %*% Sigma %*% S_scl)
         x_sample <- abs(mvtnorm::rmvnorm(N, zero_vec, Sigma)) #x_sample <- abs(FastGP::rcpp_rmvnorm_stable(N, Sigma, zero_vec))
         un <- Rfast::rowMaxs(x_sample, value = TRUE)
-        qn[i] <- quantile(un, 0.95)
+        qn[i] <- stats::quantile(un, 0.95)
       }
 
       # Decide whether to return design matrix or just set it to NULL
@@ -1394,11 +1396,11 @@ fui <- function(formula,
         for(l in 1:L){
           pb$tick()
           data$Yl <- unclass(data[,out_index][,argvals[l]])
-          fit_uni <- suppressMessages(lmer(formula = as.formula(paste0("Yl ~ ", model_formula[3])),
+          fit_uni <- suppressMessages(lmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
                                            data = data,
                                            control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
           # if(l == 1){
-          #   fit_uni <- suppressMessages(lmer(formula = as.formula(paste0("Yl ~ ", model_formula[3])),
+          #   fit_uni <- suppressMessages(lmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
           #                                  data = data,
           #                                  control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
           #   fit_orig <- fit_uni # use this in refit() so we aren't constantly updating a refit model
@@ -1467,7 +1469,7 @@ fui <- function(formula,
         K <- length(fit_fpca$evalues)
 
         ## simulate random coefficients
-        theta <- matrix(rnorm(N*K), nrow=N, ncol=K) # generate independent standard normals
+        theta <- matrix(stats::rnorm(N*K), nrow=N, ncol=K) # generate independent standard normals
         if(K == 1){
           theta <- theta * sqrt(lambda) # scale to have appropriate variance
           X_new <- tcrossprod(theta, phi) # simulate new functions
@@ -1482,7 +1484,7 @@ fui <- function(formula,
         for(j in 1:N){
           un[j] <- max(abs((x_sample[j,] - x_mean)/Sigma_sd))
         }
-        qn[i] <- quantile(un, 0.95)
+        qn[i] <- stats::quantile(un, 0.95)
       }
 
       if(!silent)  message("Complete! \n -Use plot_fui() function to plot estimates \n -For more information, run the command:  ?plot_fui")

@@ -8,7 +8,7 @@ Authors@R: c(
     person("Gabriel", "Loewinger", role = "aut", email = "gloewinger@gmail.com"))
 Description: Implementation of the fast univariate inference (Loewinger et al., 2023; Cui et al. 2022)
     approach for fitting functional mixed models.
-License: GPL (>=2)
+License: GPL (>= 3) | file LICENSE
 Encoding: UTF-8
 LazyData: true
 Repository: CRAN
@@ -25,11 +25,13 @@ Imports:
     stringr,
     Matrix,
     mvtnorm,
-    arrangements,
     progress,
     ggplot2,
-    gridExtra
+    gridExtra,
+    Rfast,
+    lmeresampler,
+    stats,
+    methods
 RoxygenNote: 7.2.3
 VignetteBuilder: knitr
 Suggests: knitr, rmarkdown
-
