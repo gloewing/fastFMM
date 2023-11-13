@@ -24,7 +24,7 @@ fui(
   boot_type = NULL,
   seed = 1,
   subj_ID = NULL,
-  num_cores = NULL,
+  num_cores = 1,
   caic = FALSE,
   REs = FALSE,
   non_neg = 0,
@@ -89,7 +89,7 @@ correlated across functional domains for certain bootstrap approach}
 
 \item{subj_ID}{Name of the variable that contains subject ID.}
 
-\item{num_cores}{Number of cores for parallelization.}
+\item{num_cores}{Number of cores for parallelization. Defaults to 1.}
 
 \item{caic}{Logical, indicating whether to calculate cAIC. Defaults to \code{FALSE}.}
 
@@ -131,19 +131,12 @@ by Cui et al. (2022).
 }
 \examples{
 library(refund)
-data(DTI)
 
 ## random intercept only
-fit_dti_1 <- fui(cca ~ case + visit + sex + (1 | ID),
-                 data = DTI)
-
-## random intercept random slope
-fit_dti_2 <- fui(cca ~ case + visit + sex + (visit | ID),
-                 data = DTI)
-
-## random intercept random slope, no variance (only step 1 and 2)
-fit_dti_2.1 <- fui(cca ~ case + visit + sex + (visit | ID),
-                   data = DTI, var = FALSE)
+set.seed(1)
+DTI_use <- DTI[DTI$ID \%in\% sample(DTI$ID, 10),]
+fit_dti <- fui(cca ~ case + visit + sex + (1 | ID),
+                 data = DTI_use)
 }
 \references{
 Cui, E., Leroux, A., Smirnova, E., Crainiceanu, C. (2022). Fast
