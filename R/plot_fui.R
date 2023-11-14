@@ -18,7 +18,7 @@
 #' @return Plots of point estimates and CIs. If \code{return = TRUE}, also returns
 #' a list where each element is a data frame with the coefficient estimates and 95\% confidence intervals (CIs).
 #'
-#' @author Gabriel Loewinger \email{gloewinger@@gmail.com}, Erjia Cui \email{ecui@@umn.edu},
+#' @author Gabriel Loewinger \email{gloewinger@@gmail.com}, Erjia Cui \email{ecui@@umn.edu}
 #'
 #' @references Cui, E., Leroux, A., Smirnova, E., Crainiceanu, C. (2022). Fast
 #' Univariate Inference for Longitudinal Functional Models. \emph{Journal of
@@ -31,9 +31,10 @@
 #'
 #' @examples
 #' library(refund)
-#' data(DTI)
-#' fit_dti <- fui(formula = cca ~ case + visit + sex + (visit | ID),
-#'                data = DTI, family = "gaussian", var = TRUE)
+#' set.seed(1)
+#' DTI_use <- DTI[DTI$ID %in% sample(DTI$ID, 6),]
+#' fit_dti <- fui(formula = cca ~ case + visit + sex + (1 | ID),
+#'                data = DTI_use, family = "gaussian", var = TRUE)
 #' plot_fui(fit_dti)
 
 plot_fui <- function(fuiobj,

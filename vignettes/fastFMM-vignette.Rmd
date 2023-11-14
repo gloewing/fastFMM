@@ -187,14 +187,6 @@ Unless specified otherwise, `fui()` assumes a Gaussian family and provides infer
 
 -   Both analytic and bootstrap inference can be sped up substantially by parallelizing the univariate model-fitting with `parallel=TRUE`. The number of cores used for parallelizing can be specified in `num_cores`. Otherwise, `R` will set this automatically based on the number of cores available on your computer.
 
-```{r, eval = FALSE}
-mod <- fui(Y ~ treatment + # main effect of cue
-                  (treatment | id),  # random intercept
-                  data = dat,
-                  parallel = TRUE,
-                  analytic = FALSE) # bootstrap
-```
-
 -   The `family` argument is the standard GLM family from `R` `stats::glm()`. More specifically, our package allows for any family in the `glmer()` and `lmer()` functions offered by the `lme4` package.
 
 -   At times one might wish to analyze only a subset of the functional domain by, for example, downsampling the number of points of the functional outcome, or using only certain subintervals. This can be set by providing a vector of indices of which points of the functional outcome to use in the analysis using the `argvals` argument. For example, the following analyzes every 3rd point of the functional outcome.
@@ -250,7 +242,7 @@ After fitting a model, one can quickly visualize estimates and 95% confidence in
 
 ```{r}
 mod <- fui(Y ~ treatment + # main effect of cue
-                  (treatment | id),  # random intercept
+                  (1 | id),  # random intercept
                   data = dat) 
 
 fui_plot <- plot_fui(mod)
@@ -273,9 +265,6 @@ fui_plot <- plot_fui(mod, # model fit object
 
 One can access the regression coefficient estimates and associated pointwise and joint 95% confidence intervals by looking at the object outputted from the `plot_fui()` function. This is stored in the object which is a list that has $p$ elements (one for each fixed effect). Each element in that list (named according to the corresponding fixed effects covariate) is a data-frame that has $L$ rows ($L$ is number of points observed along the functional domain) and columns for coefficient estimates and 95% CIs.
 
-```{r}
-head(fui_plot$treatment)
-```
 
 # Advanced Options
 

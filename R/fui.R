@@ -54,7 +54,7 @@
 #' @param seed Numeric value used to make sure bootstrap replicate (draws) are
 #' correlated across functional domains for certain bootstrap approach
 #' @param subj_ID Name of the variable that contains subject ID.
-#' @param num_cores Number of cores for parallelization.
+#' @param num_cores Number of cores for parallelization. Defaults to 1.
 #' @param caic Logical, indicating whether to calculate cAIC. Defaults to \code{FALSE}.
 #' @param REs Logical, indicating whether to return random effect estimates.
 #' Defaults to \code{FALSE}.
@@ -97,19 +97,12 @@
 #'
 #' @examples
 #' library(refund)
-#' data(DTI)
 #'
 #' ## random intercept only
-#' fit_dti_1 <- fui(cca ~ case + visit + sex + (1 | ID),
-#'                  data = DTI)
-#'
-#' ## random intercept random slope
-#' fit_dti_2 <- fui(cca ~ case + visit + sex + (visit | ID),
-#'                  data = DTI)
-#'
-#' ## random intercept random slope, no variance (only step 1 and 2)
-#' fit_dti_2.1 <- fui(cca ~ case + visit + sex + (visit | ID),
-#'                    data = DTI, var = FALSE)
+#' set.seed(1)
+#' DTI_use <- DTI[DTI$ID %in% sample(DTI$ID, 10),]
+#' fit_dti <- fui(cca ~ case + visit + sex + (1 | ID),
+#'                  data = DTI_use)
 
 fui <- function(formula,
                 data,
@@ -130,7 +123,7 @@ fui <- function(formula,
                 boot_type = NULL,
                 seed = 1,
                 subj_ID = NULL,
-                num_cores = NULL,
+                num_cores = 1,
                 caic = FALSE,
                 REs = FALSE,
                 non_neg = 0,
