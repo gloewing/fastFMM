@@ -9,6 +9,7 @@ Repository for the development version of the R Package `fastFMM`.
 ## Installation
 
 Download the $\texttt{R}$ Package `fastFMM` by running the following command within $\texttt{R}$ or $\texttt{RStudio}$:
+
 ```{R}
 install.packages("fastFMM")
 ```
