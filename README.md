@@ -2,7 +2,7 @@
 
 ## Repository Description
 
-Repository for the development version of the R Package `fastFMM`.
+Repository for the development version of the R Package `fastFMM`. For more information, see the official `fastFMM` $\texttt{CRAN}$ [site](https://cran.r-project.org/web/packages/fastFMM/index.html).  
 
 ## `fastFMM` R Package
 
