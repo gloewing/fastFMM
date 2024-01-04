@@ -32,6 +32,8 @@ Imports:
     stats,
     methods
 RoxygenNote: 7.2.3
+URL: https://github.com/gloewing/fastFMM
+BugReports: https://github.com/gloewing/fastFMM/issues
 VignetteBuilder: knitr
 Suggests: 
     knitr,
