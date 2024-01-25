@@ -1152,6 +1152,8 @@ fui <- function(formula,
           return(V)
         }else if(length(eigen.positive) == 0){
           return(tcrossprod(edcomp$vectors[,1]) * edcomp$values[1])
+        }else if(length(eigen.positive) == 1){
+          return(tcrossprod(as.vector(edcomp$vectors[,1])) * as.numeric(edcomp$values[1]))
         }else{
           # sum of outerproducts of eigenvectors scaled by eigenvalues for all positive eigenvalues
           return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(Diagonal(x=edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
