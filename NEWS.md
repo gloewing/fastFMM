@@ -1,6 +1,6 @@
 # fastFMM 0.2.0
 
-* Fix several bugs.
+* Fixed several bugs.
 
 # fastFMM 0.1.0
 
