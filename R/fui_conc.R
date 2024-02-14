@@ -117,24 +117,30 @@ fui_conc <- function(formula,
                 MoM = 2){
 
   # If doing parallel computing, set up the number of cores
-  if(parallel & !is.integer(num_cores) ) num_cores <- parallel::detectCores() - 1
+  if(parallel & !is.integer(num_cores))
+    num_cores <- parallel::detectCores() - 1
 
   # For non-Gaussian family, only do bootstrap inference
-  if(family != "gaussian") analytic <- FALSE
+  if(family != "gaussian")
+    analytic <- FALSE
 
   # Organize the input from the model formula
   model_formula <- as.character(formula)
   stopifnot(model_formula[1] == "~" & length(model_formula) == 3)
 
-  # stop function if there are column names with "." to avoid issues with covariance G() and H() calculations below
+  # stop function if there are column names with "." to avoid issues with
+  # covariance G() and H() calculations below
   dep_str <- deparse(model_formula[3])
   if(grepl(".", dep_str, fixed = TRUE)){
     # make sure it isn't just a call to all covariates with "Y ~. "
-    dep_str_rm <- substr(dep_str, 3, nchar(dep_str)) # remove first character of parsed formula string and check
+    # remove first character of parsed formula string and check
+    dep_str_rm <- substr(dep_str, 3, nchar(dep_str))
     if(grepl(".", dep_str_rm, fixed = TRUE)){
-      stop('Remove the character "." from all non-functional covariate names and rerun fui() function
+      stop(
+        'Remove the character "." from all non-functional covariate names and rerun fui() function
            -For example, change the name "X.1" to "X_1"
-           -The string "." *should* be kept in the functional outcome names (e.g., "Y.1" *is* proper naming).')
+           -The string "." *should* be kept in the functional outcome names (e.g., "Y.1" *is* proper naming).'
+      )
     }
   }
   rm(dep_str)
@@ -142,6 +148,7 @@ fui_conc <- function(formula,
   ##############################################################################
   ## Step 1
   ##############################################################################
+
   if(silent == FALSE) print("Step 1: Fit Massively Univariate Mixed Models")
 
   # Obtain the dimension of the functional domain
@@ -168,17 +175,26 @@ fui_conc <- function(formula,
   ### Create a function that fit a mixed model at location l
   ### Input: l:location of the functional domain
   ### Output: A list containing point estimates, variance estimates, etc.
-  unimm <- function(l){
+
+  unimm <- function(l) {
     data$Yl <- unclass(data[,out_index][,l])
     if(family == "gaussian"){
-      fit_uni <- suppressMessages(lmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
-                                       data = data,
-                                       control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
-    }else{
-      fit_uni <- suppressMessages(glmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
-                                        data = data,
-                                        family = family,
-                                        control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
+      fit_uni <- suppressMessages(
+        lmer(
+          formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
+          data = data,
+          control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))
+        )
+      )
+    } else {
+      fit_uni <- suppressMessages(
+        glmer(
+          formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
+          data = data,
+          family = family,
+          control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))
+        )
+      )
     }
     betaTilde <- lme4::fixef(fit_uni) ## fixed effects estimates
 
@@ -187,7 +203,7 @@ fui_conc <- function(formula,
     if(caic) aic_met <- as.numeric(cAIC4::cAIC(fit_uni)$caic)[1]
     if(REs) re_df <- ranef(fit_uni) ## random effects
 
-    if(analytic == TRUE){
+    if(analytic == TRUE) {
       varcorr <- as.data.frame(VarCorr(fit_uni))
       var_random <- varcorr[,4] ## extract variance/covariance estimates
       ind_var <- which(is.na(varcorr[,3]) & varcorr[,1] != "Residual") ## variance of random components
@@ -213,7 +229,7 @@ fui_conc <- function(formula,
                   var_random = var_random,
                   se_mat = se_mat))
 
-    }else{
+    } else {
       return(list(betaTilde = betaTilde,
                   group = as.data.frame(VarCorr(fit_uni))[1,1],
                   aic = stats::AIC(fit_uni),
@@ -227,9 +243,9 @@ fui_conc <- function(formula,
   }
 
   # Fit massively univariate mixed models
-  if(parallel == TRUE){
+  if(parallel == TRUE) {
     massmm <- mclapply(argvals, unimm, mc.cores = num_cores)
-  }else{
+  } else {
     massmm <- lapply(argvals, unimm)
   }
 
@@ -248,22 +264,22 @@ fui_conc <- function(formula,
   resids <- NA
   if(residuals) resids <- suppressMessages(lapply(massmm, '[[', 5) %>% dplyr::bind_cols())
   ## random effects
-  if(analytic == TRUE){
-    if(REs){
+  if(analytic == TRUE) {
+    if(REs) {
       randEff <- suppressMessages(
         simplify2array(lapply(lapply(massmm, '[[', 7), function(x) as.matrix(x[[1]])))
       )  # will need to change [[1]] to random effect index if multiple REs
-    }else{
+    } else {
       randEff <- NULL
     }
     se_mat <- suppressMessages(do.call(cbind, lapply(massmm, '[[', 9) ))
-  }else{
+  } else {
     randEff <- se_mat <- NULL
   }
 
   # Obtain variance estimates of random effects (analytic)
   # AX: Remove this, insert into the unilmm fit
-  if(analytic == TRUE){
+  if(analytic == TRUE) {
     var_random <- t(do.call(rbind, lapply(massmm, '[[', 8)))
     sigmaesqHat <- var_random["var.Residual",,drop = FALSE]
     sigmausqHat <- var_random[which(rownames(var_random) != "var.Residual"),,drop = FALSE]
@@ -273,12 +289,13 @@ fui_conc <- function(formula,
       fit_uni <- suppressMessages(lmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
                                        data = data,
                                        control = lmerControl(optimizer = "bobyqa")))
-    }else{
+    } else {
       fit_uni <- suppressMessages(glmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
                                         data = data,
                                         family = family,
                                         control = glmerControl(optimizer = "bobyqa")))
     }
+
     designmat <- stats::model.matrix(fit_uni) ## model design matrix
     name_random <- as.data.frame(VarCorr(fit_uni))[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3])),3]
     ## names of random effects
@@ -1408,13 +1425,16 @@ fui_conc <- function(formula,
 
           set.seed(seed) # set seed to make sure bootstrap replicate (draws) are correlated across functional domains
 
-          if(boot_type == "residual"){
-            boot_sample <- lmeresampler::bootstrap(model = fit_uni,
-                                                   B = B,
-                                                   type = boot_type,
-                                                   rbootnoise = 0.0001)$replicates # for residual bootstrap to avoid singularity problems
+          if (boot_type == "residual") {
+            boot_sample <- lmeresampler::bootstrap(
+              model = fit_uni,
+              B = B,
+              type = boot_type,
+              # for residual bootstrap to avoid singularity problems
+              rbootnoise = 0.0001)$replicates
+
             betaTilde_boot[,l,] <- t(as.matrix(boot_sample[,1:nrow(betaHat)]))
-          }else if(boot_type %in% c("wild", "reb", "case") ){
+          } else if(boot_type %in% c("wild", "reb", "case")) {
             # for case
             flist <- lme4::getME(fit_uni, "flist")
             re_names <- names(flist)

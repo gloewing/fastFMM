@@ -1,0 +1,52 @@
+---
+title: "Concurrent demo"
+output: html_notebook
+---
+```{r}
+library(lme4)
+library(parallel)
+library(magrittr)
+library(MASS)
+
+library(stringr)
+library(mgcv)
+library(refund)
+library(cAIC4)
+library(lsei)
+library(Matrix)
+library(mvtnorm)
+library(Rfast)
+library(progress)
+
+# Load dplyr last to use all of tidyverse without masking
+library(dplyr)
+
+# For plotting
+library(ggplot2)
+library(gridExtra)
+```
+
+## Baseline demo
+
+```{r}
+library(refund)
+
+# random intercept only
+set.seed(1)
+DTI_use <- DTI[DTI$ID %in% sample(DTI$ID, 10),]
+fit_dti <- fui(
+  cca ~ case + visit + sex + (1 | ID),
+  data = DTI_use
+)
+```
+
+```{r}
+plot_fui(fit_dti)
+```
+
+## Concurrent demo
+
+```{r}
+
+```
+
