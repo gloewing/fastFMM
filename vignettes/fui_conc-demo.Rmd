@@ -2,6 +2,7 @@
 title: "Concurrent demo"
 output: html_notebook
 ---
+
 ```{r}
 library(lme4)
 library(parallel)
@@ -47,6 +48,17 @@ plot_fui(fit_dti)
 ## Concurrent demo
 
 ```{r}
+lick <- read.csv('func_cov_scienceDA.csv')
+```
 
+```{r}
+unique(lick$id)
+```
+
+```{r}
+# Photometry is functional outcome
+# Some trials are removed for data cleaning purposes
+# Lick is functional cov
+colnames(lick) 
 ```
 

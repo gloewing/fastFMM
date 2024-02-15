@@ -158,10 +158,12 @@ fui <- function(formula,
   if(silent == FALSE) print("Step 1: Fit Massively Univariate Mixed Models")
 
   # Obtain the dimension of the functional domain
-  out_index <- grep(paste0("^", model_formula[2]), names(data)) # indices that start with the outcome name
-  if(length(out_index) != 1){ # functional observations stored in multiple columns
+  # indices that start with the outcome name
+  out_index <- grep(paste0("^", model_formula[2]), names(data))
+
+  if (length(out_index) != 1) { # functional observations stored in multiple columns
     L <- length(out_index)
-  }else{ # observations stored as a matrix in one column using the I() function
+  } else { # observations stored as a matrix in one column using the I() function
     L <- ncol(data[,out_index])
   }
   if(analytic & !is.null(argvals) & var)  message("'argvals' argument is currently only supported for bootstrap. `argvals' ignored: fitting model to ALL points on functional domain")
@@ -178,73 +180,35 @@ fui <- function(formula,
   # Create a matrix to store AICs
   AIC_mat <- matrix(NA, nrow = L, ncol = 2)
 
-  ### Create a function that fit a mixed model at location l
-  ### Input: l:location of the functional domain
-  ### Output: A list containing point estimates, variance estimates, etc.
-  unimm <- function(l){
-    data$Yl <- unclass(data[,out_index][,l])
-    if(family == "gaussian"){
-      fit_uni <- suppressMessages(lmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
-                                       data = data,
-                                       control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
-    }else{
-      fit_uni <- suppressMessages(glmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
-                                        data = data,
-                                        family = family,
-                                        control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
-    }
-    betaTilde <- lme4::fixef(fit_uni) ## fixed effects estimates
-
-    re_df <- aic_met <- resids <- NA
-    if(residuals) resids <- as.numeric(residuals(fit_uni)) # these are residuals from including the random effects (i.e., with BLUPs): not JUST from fixed effects -- can verify by comparing with nlme::lme() and seeing 2 columns of residuals in lme: mod$residuals
-    if(caic) aic_met <- as.numeric(cAIC4::cAIC(fit_uni)$caic)[1]
-    if(REs) re_df <- ranef(fit_uni) ## random effects
-
-    if(analytic == TRUE){
-      varcorr <- as.data.frame(VarCorr(fit_uni))
-      var_random <- varcorr[,4] ## extract variance/covariance estimates
-      ind_var <- which(is.na(varcorr[,3]) & varcorr[,1] != "Residual") ## variance of random components
-      # variance of random components
-      names(var_random)[ind_var] <- paste0("var.",varcorr[ind_var,1],".",varcorr[ind_var,2])
-      # variance of the residual components
-      names(var_random)[which(varcorr[,1] == "Residual")] <- "var.Residual"
-      # covariance of random components
-      names(var_random)[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))] <-
-        paste0("cov.",
-               varcorr$grp[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))], ".",
-               varcorr$var1[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))], ".",
-               varcorr$var2[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))])
-      se_mat <- summary(fit_uni)$coefficients[,2] ## se of fixed effects
-
-      return(list(betaTilde = betaTilde,
-                  group = varcorr[1,1],
-                  aic = stats::AIC(fit_uni),
-                  bic = stats::BIC(fit_uni),
-                  residuals = resids,
-                  caic = aic_met,
-                  re_df = re_df,
-                  var_random = var_random,
-                  se_mat = se_mat))
-
-    }else{
-      return(list(betaTilde = betaTilde,
-                  group = as.data.frame(VarCorr(fit_uni))[1,1],
-                  aic = stats::AIC(fit_uni),
-                  bic = stats::BIC(fit_uni),
-                  residuals = resids,
-                  caic = aic_met,
-                  re_df = re_df))
-
-    }
-
-  }
-
   # Fit massively univariate mixed models
+  message("Trying new function: unimm")
   if(parallel == TRUE){
-    massmm <- mclapply(argvals, unimm, mc.cores = num_cores)
-  }else{
-    massmm <- lapply(argvals, unimm)
+    massmm <- mclapply(
+      argvals,
+      unimm,
+      data = data,
+      model_formula = model_formula,
+      family = family,
+      residuals = residuals,
+      caic = caic,
+      REs = REs,
+      analytic = analytic,
+      mc.cores = num_cores
+    )
+  } else {
+    massmm <- mclapply(
+      argvals,
+      unimm,
+      data = data,
+      model_formula = model_formula,
+      family = family,
+      residuals = residuals,
+      caic = caic,
+      REs = REs,
+      analytic = analytic
+    )
   }
+  message("unimm successfully integrated")
 
   # Obtain betaTilde, fixed effects estimates
   betaTilde <- t(do.call(rbind, lapply(massmm, '[[', 1)))
@@ -1018,7 +982,7 @@ fui <- function(formula,
         GHat <- fbps_cov(GTilde, search.length = 100, knots = nknots_cov)$Yhat ## fast bivariate smoother # nknots_min
         diag(GHat)[which(diag(GHat) < 0)] <- diag(GTilde)[which(diag(GHat) < 0)]
 
-      }else{
+      } else {
         ## if more random effects than random intercept only
         if(silent == FALSE) print("Step 3.1.1: Preparation B")
 
@@ -1319,7 +1283,7 @@ fui <- function(formula,
                   argvals = argvals,
                   randEff = randEff, se_mat = se_mat))
 
-    }else{
+    } else {
 
       ##########################################################################
       ## Bootstrap Inference
