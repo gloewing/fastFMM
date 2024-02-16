@@ -1,7 +1,20 @@
-#' Concurrent FUI
+#' Fast Univariate Inference for Longitudinal Functional Models
 #'
-#' A modification to FUI to allow for concurrent fitting.
+#' Fit a function-on-scalar regression model for longitudinal
+#' functional outcomes and scalar predictors using the Fast Univariate
+#' Inference (FUI) approach (Cui et al. 2022).
 #'
+#' The FUI approach comprises of three steps:
+#' \enumerate{
+#' \item Fit a univariate mixed model at each location of the functional domain,
+#' and obtain raw estimates from massive models;
+#' \item Smooth the raw estimates along the functional domain;
+#' \item Obtain the pointwise and joint confidence bands using an analytic
+#' approach for Gaussian data or Bootstrap for general distributions.
+#' }
+#'
+#' For more information on each step, please refer to the FUI paper
+#' by Cui et al. (2022).
 #'
 #' @param formula Two-sided formula object in lme4 formula syntax.
 #' The difference is that the response need to be specified as a matrix
@@ -91,56 +104,51 @@
 #' fit_dti <- fui(cca ~ case + visit + sex + (1 | ID),
 #'                  data = DTI_use)
 
-fui_conc <- function(formula,
-                data,
-                family = "gaussian",
-                var = TRUE,
-                analytic = TRUE,
-                parallel = FALSE,
-                silent = FALSE,
-                argvals = NULL,
-                nknots_min = NULL,
-                nknots_min_cov = 35,
-                smooth_method = "GCV.Cp",
-                splines = "tp",
-                design_mat = FALSE,
-                residuals = FALSE,
-                G_return = FALSE,
-                num_boots = 500,
-                boot_type = NULL,
-                seed = 1,
-                subj_ID = NULL,
-                num_cores = 1,
-                caic = FALSE,
-                REs = FALSE,
-                non_neg = 0,
-                MoM = 2){
+fui <- function(
+  formula,
+  data,
+  family = "gaussian",
+  var = TRUE,
+  analytic = TRUE,
+  parallel = FALSE,
+  silent = FALSE,
+  argvals = NULL,
+  nknots_min = NULL,
+  nknots_min_cov = 35,
+  smooth_method = "GCV.Cp",
+  splines = "tp",
+  design_mat = FALSE,
+  residuals = FALSE,
+  G_return = FALSE,
+  num_boots = 500,
+  boot_type = NULL,
+  seed = 1,
+  subj_ID = NULL,
+  num_cores = 1,
+  caic = FALSE,
+  REs = FALSE,
+  non_neg = 0,
+  MoM = 2){
 
   # If doing parallel computing, set up the number of cores
-  if(parallel & !is.integer(num_cores))
-    num_cores <- parallel::detectCores() - 1
+  if(parallel & !is.integer(num_cores) ) num_cores <- parallel::detectCores() - 1
 
   # For non-Gaussian family, only do bootstrap inference
-  if(family != "gaussian")
-    analytic <- FALSE
+  if(family != "gaussian") analytic <- FALSE
 
   # Organize the input from the model formula
   model_formula <- as.character(formula)
   stopifnot(model_formula[1] == "~" & length(model_formula) == 3)
 
-  # stop function if there are column names with "." to avoid issues with
-  # covariance G() and H() calculations below
+  # stop function if there are column names with "." to avoid issues with covariance G() and H() calculations below
   dep_str <- deparse(model_formula[3])
   if(grepl(".", dep_str, fixed = TRUE)){
     # make sure it isn't just a call to all covariates with "Y ~. "
-    # remove first character of parsed formula string and check
-    dep_str_rm <- substr(dep_str, 3, nchar(dep_str))
+    dep_str_rm <- substr(dep_str, 3, nchar(dep_str)) # remove first character of parsed formula string and check
     if(grepl(".", dep_str_rm, fixed = TRUE)){
-      stop(
-        'Remove the character "." from all non-functional covariate names and rerun fui() function
+      stop('Remove the character "." from all non-functional covariate names and rerun fui() function
            -For example, change the name "X.1" to "X_1"
-           -The string "." *should* be kept in the functional outcome names (e.g., "Y.1" *is* proper naming).'
-      )
+           -The string "." *should* be kept in the functional outcome names (e.g., "Y.1" *is* proper naming).')
     }
   }
   rm(dep_str)
@@ -148,43 +156,57 @@ fui_conc <- function(formula,
   ##############################################################################
   ## Step 1
   ##############################################################################
-
   if(silent == FALSE) print("Step 1: Fit Massively Univariate Mixed Models")
 
   # Obtain the dimension of the functional domain
   # indices that start with the outcome name
   out_index <- grep(paste0("^", model_formula[2]), names(data))
-  # functional observations stored in multiple columns
-  if (length(out_index) != 1 ){
+
+  if (length(out_index) != 1) { # functional observations stored in multiple columns
     L <- length(out_index)
-  } else {
-    # observations stored as a matrix in one column using the I() function
+  } else { # observations stored as a matrix in one column using the I() function
     L <- ncol(data[,out_index])
   }
-
-  if (analytic & !is.null(argvals) & var)
-    message("'argvals' argument is currently only supported for bootstrap. `argvals' ignored: fitting model to ALL points on functional domain")
-  if (is.null(argvals) | analytic) {
+  if(analytic & !is.null(argvals) & var)  message("'argvals' argument is currently only supported for bootstrap. `argvals' ignored: fitting model to ALL points on functional domain")
+  if(is.null(argvals) | analytic){
     # Set up the functional domain when not specified
     argvals <- 1:L
-  } else {
+  }else{
     # when only using a subset of the functional domain
-    if (max(argvals) > L)
-      stop("Maximum index specified in argvals is greater than the total number of columns for the functional outcome")
+    if(max(argvals) > L) stop("Maximum index specified in argvals is greater than the total number of columns for the functional outcome")
     L <- length(argvals)
   }
-
-  if(family == "gaussian" & analytic & L > 400 & var)
-    message("Your functional data is dense! Consider subsampling along the functional domain (i.e., reduce columns of outcome matrix) or using bootstrap inference.")
+  if(family == "gaussian" & analytic & L > 400 & var)   message("Your functional data is dense! Consider subsampling along the functional domain (i.e., reduce columns of outcome matrix) or using bootstrap inference.")
 
   # Create a matrix to store AICs
   AIC_mat <- matrix(NA, nrow = L, ncol = 2)
 
   # Fit massively univariate mixed models
-  if(parallel == TRUE) {
-    massmm <- mclapply(argvals, unimm_conc, mc.cores = num_cores)
+  if(parallel == TRUE){
+    massmm <- mclapply(
+      argvals,
+      unimm,
+      data = data,
+      model_formula = model_formula,
+      family = family,
+      residuals = residuals,
+      caic = caic,
+      REs = REs,
+      analytic = analytic,
+      mc.cores = num_cores
+    )
   } else {
-    massmm <- lapply(argvals, unimm_conc)
+    massmm <- mclapply(
+      argvals,
+      unimm,
+      data = data,
+      model_formula = model_formula,
+      family = family,
+      residuals = residuals,
+      caic = caic,
+      REs = REs,
+      analytic = analytic
+    )
   }
 
   # Obtain betaTilde, fixed effects estimates
@@ -202,22 +224,21 @@ fui_conc <- function(formula,
   resids <- NA
   if(residuals) resids <- suppressMessages(lapply(massmm, '[[', 5) %>% dplyr::bind_cols())
   ## random effects
-  if(analytic == TRUE) {
-    if(REs) {
+  if(analytic == TRUE){
+    if(REs){
       randEff <- suppressMessages(
         simplify2array(lapply(lapply(massmm, '[[', 7), function(x) as.matrix(x[[1]])))
       )  # will need to change [[1]] to random effect index if multiple REs
-    } else {
+    }else{
       randEff <- NULL
     }
     se_mat <- suppressMessages(do.call(cbind, lapply(massmm, '[[', 9) ))
-  } else {
+  }else{
     randEff <- se_mat <- NULL
   }
 
   # Obtain variance estimates of random effects (analytic)
-  # AX: Remove this, insert into the unimm fit
-  if(analytic == TRUE) {
+  if(analytic == TRUE){
     var_random <- t(do.call(rbind, lapply(massmm, '[[', 8)))
     sigmaesqHat <- var_random["var.Residual",,drop = FALSE]
     sigmausqHat <- var_random[which(rownames(var_random) != "var.Residual"),,drop = FALSE]
@@ -227,13 +248,12 @@ fui_conc <- function(formula,
       fit_uni <- suppressMessages(lmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
                                        data = data,
                                        control = lmerControl(optimizer = "bobyqa")))
-    } else {
+    }else{
       fit_uni <- suppressMessages(glmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
                                         data = data,
                                         family = family,
                                         control = glmerControl(optimizer = "bobyqa")))
     }
-
     designmat <- stats::model.matrix(fit_uni) ## model design matrix
     name_random <- as.data.frame(VarCorr(fit_uni))[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3])),3]
     ## names of random effects
@@ -252,7 +272,7 @@ fui_conc <- function(formula,
       }
     }
     if(is.null(subj_ID)) subj_ID <- group
-    randInt_flag <- I(length(fit_uni@cnms) == 1 & length(fit_uni@cnms[[group]]) == 1 & fit_uni@cnms[[group]][1] == "(Intercept)")
+    randint_flag <- I(length(fit_uni@cnms) == 1 & length(fit_uni@cnms[[group]]) == 1 & fit_uni@cnms[[group]][1] == "(Intercept)")
     rm(fit_uni)
   }
 
@@ -260,7 +280,6 @@ fui_conc <- function(formula,
   ##############################################################################
   ## Step 2
   ##############################################################################
-
   if(silent == FALSE) print("Step 2: Smoothing")
 
   # Penalized splines smoothing and extract components (analytic)
@@ -293,7 +312,6 @@ fui_conc <- function(formula,
   ##############################################################################
   ## Step 3
   ##############################################################################
-
   if(var == TRUE){ ## skip the step when var = FALSE
 
     if(analytic == TRUE){
@@ -309,6 +327,7 @@ fui_conc <- function(formula,
       if(silent == FALSE) print("Step 3.1: Preparation")
 
       # Fill in missing values of the raw data using FPCA
+
       if(length(which(is.na(data[,out_index]))) != 0){
         message(paste("Imputing", length(out_index), "values in functional response with longitudinal functional PCA" ))
         if(length(out_index) != 1){
@@ -333,27 +352,6 @@ fui_conc <- function(formula,
       RHat <- t(apply(sigmaesqHat, 1, function(b) stats::smooth.spline(x = argvals, y = b)$y))
       RHat[which(RHat < 0)] <- 0
 
-      # Derive covariance estimates of random components: G(s1,s2)
-      ### Create a function that estimates covariance G for random intercepts
-      G.estimate_randInt <- function(data, out_index, designmat, betaHat,
-                                     silent = TRUE){
-
-        if(silent == FALSE) print("Step 3.1.1: Method of Moments Covariance Estimator Random Intercept")
-
-        GTilde <- matrix(NA, nrow = L, ncol = L)
-        vdm <- crossprod(betaHat,  var(designmat) %*% betaHat)
-        d_temp <- data[,out_index]
-        for(i in 1:L){
-          bhatVdm <- vdm[,i]
-          d_temp_i <- d_temp[,i]
-          res_temp <- GTilde[i,]
-          for(j in 1:L){
-            res_temp[j] <- stats::cov(d_temp_i, d_temp[,j], use = "pairwise.complete.obs") - bhatVdm[j]
-          }
-          GTilde[i,] <- res_temp
-        }
-        return(GTilde)
-      }
       ### Create a function that estimates covariance G for general cases
       #### Create a subfunction that estimates non-negative terms on diagonal
       cov.nnls <- function(data_cov, RE_table, idx_lst, d_temp, designmat,
@@ -405,83 +403,7 @@ fui_conc <- function(formula,
 
         return(GTilde)
       }
-      G.estimate <- function(data, out_index, data_cov, ztlist, designmat,
-                             betaHat, HHat, RE_table, non_neg = 1, MoM = 2,
-                             silent = TRUE){
 
-        if(silent == FALSE) print("Step 3.1.1: Method of Moments Covariance Estimator")
-
-        GTilde <- array(NA, dim = c(nrow(HHat), L, L))
-        idx_lst <- data_cov$idx_lst # indices of beta to average over
-        z_names <- names(ztlist)
-        Z <- as.matrix(data_cov$Z_orig) # this has concatenated design matrix and sums over columns for ID variables #do.call(cbind, ztlist)
-
-        # first part of OLS
-        if(MoM == 2){
-          XTXX <- as.matrix( tcrossprod( MASS::ginv( as.matrix(crossprod(data_cov$Z)) ), data_cov$Z) ) # first part of OLS expression
-        }else if(MoM == 1){
-          # function to join matrices
-          mat_concat <- function(yy, xx){
-            if(length(xx) > 1){
-              return( rowSums(yy[,xx]) )
-            }else{
-              return( yy[,xx] )
-            }
-          }
-          ZZ <- do.call( cbind, lapply( idx_lst,  function(xx) mat_concat(yy=data_cov$Z, xx=xx) ) ) # sum across columns of Z associated with same random effect
-          XTXX <- tcrossprod( MASS::ginv( crossprod(ZZ) ), ZZ) # first part of OLS expression
-          rm(ZZ)
-        }
-
-        # save design matrix for random effects
-        idx_vec_zlst <- sapply(ztlist, ncol) # number of cols in each matrix
-        idx_vec_zlst <- c(0, cumsum(idx_vec_zlst)) # vector of indices
-
-        d_temp <- data[,out_index]
-        if(MoM == 2){
-          for(i in 1:L){
-            YYi <- (d_temp[,i] - designmat %*% betaHat[,i])
-            for(j in i:L){
-              YYj <- YYi * (d_temp[,j] - designmat %*% betaHat[,j]) # outcome of product of residuals
-              bHat <- XTXX %*% YYj  # coefficients from OLS with pseudo-inverse
-              GTilde[,i,j] <- GTilde[,j,i] <- sapply( idx_lst,  function(x) mean(bHat[x]) )
-            }
-          }
-          rm(bHat)
-        }else if(MoM == 1){
-          for(i in 1:L){
-            YYi <- (d_temp[,i] - designmat %*% betaHat[,i])
-            for(j in i:L){
-              YYj <- YYi * (d_temp[,j] - designmat %*% betaHat[,j]) # outcome of product of residuals
-              GTilde[,i,j] <- GTilde[,j,i] <- XTXX %*% YYj # coefficients from OLS with pseudo-inverse
-            }
-          }
-        }
-        rm(YYi, YYj, XTXX)
-
-        # non-negative least squares for estimation of non-diagonal terms
-        if(non_neg != 0){
-
-          if(MoM == 1 & non_neg == 2){
-            message("Method of Moments approach 1 estimator can only use NNLS estimation scheme 1. Proceeding with NNLS-1")
-            non_neg <- 1
-          }
-
-          GTilde <- cov.nnls(data_cov = data_cov,
-                             RE_table = RE_table,
-                             idx_lst = idx_lst,
-                             d_temp = d_temp,
-                             designmat = designmat,
-                             betaHat = betaHat,
-                             GTilde = GTilde,
-                             non_neg = non_neg,
-                             silent = silent)
-        }
-
-        dimnames(GTilde)[[1]] <- rownames(HHat) # use names so lfosr_cov_organize() function below knows how to organize sub matrices based on names
-
-        return(GTilde)
-      }
       ### Create a function that takes in design matrix and names to calculate
       ### and produce design matrix and indices for summing for G(s_1, s_2)
       ### covariance matrix OLS regression
@@ -504,8 +426,6 @@ fui_conc <- function(formula,
         Z <- vector(length = nrow(RE_table), "list") # list where each element will be design submatrix for corresponding term
         idx_vec <- vector(length = nrow(RE_table)) # vector where each element are indices of eventual Z matrix corresponding to each term in HHat (for summing in OLS)
 
-        # AX
-        # 2.1) Add another loop for each element of Z_lst
         for(j in 1:nrow(RE_table)){
           # iterate through covariance term names (i.e., random effect terms)
 
@@ -582,7 +502,10 @@ fui_conc <- function(formula,
 
       }
 
+      # TODO: Place this in its own function
+      # Also needs to call `select_knots` and `pspline_setting` w/in the pkg
 
+      message("Testing pspline_setting and select_knots")
       # altered fbps() function from refund to increase GCV speed (b/c lambda1=lambda2 for cov matrices b/c they're symmetric)
       fbps_cov <- function(data, subj=NULL,covariates = NULL, knots=35, knots.option="equally-spaced",
                        periodicity = c(FALSE,FALSE), p=3,m=2,lambda=NULL,
@@ -601,122 +524,6 @@ fui_conc <- function(formula,
         # lscv: for leave-one-subject-out cross validation, the columns are subjects
         # method: see "optim"
         # lower, upper, control: see "optim"
-
-        # select_knots.R from refund package
-        select_knots <- function(t,knots=10,p=3,option="equally-spaced"){
-          #  copied from:  https://rdrr.io/cran/refund/src/R/select_knots.R
-          qs <- seq(0,1,length=knots+1)
-
-          if(option=="equally-spaced"){
-            knots <- (max(t)-min(t))*qs + min(t)
-          }
-          if(option=="quantile"){
-            knots <- as.vector(stats::quantile(t,qs))
-          }
-
-          K <- length(knots)
-          knots_left <- 2*knots[1]-knots[p:1+1]
-          knots_right <- 2*knots[K] - knots[K-(1:p)]
-
-          return(c(knots_left,knots,knots_right))
-        }
-
-        # pspline.setting.R function from refund package
-        pspline.setting <- function(x,knots=select_knots(x,35),p=3,m=2,periodicity=FALSE,weight=NULL){
-          #  copied from: https://rdrr.io/cran/refund/src/R/pspline.setting.R
-
-          # x: the marginal data points
-          # knots: the list of interior knots or the numbers of interior knots
-          # p: degrees for B-splines, with defaults values 3
-          # m: orders of difference penalty, with default values 2
-          #require(splines)
-          #require(Matrix)
-
-          ### design matrix
-          K = length(knots)-2*p-1
-          B = splines::spline.des(knots=knots, x=x, ord = p+1,outer.ok = TRUE)$design
-          if(periodicity){
-            Bint = B[,-c(1:p,K+1:p)]
-            Bleft = B[,1:p]
-            Bright = B[,K+1:p]
-            B = cbind(Bint,Bleft+Bright)
-          }
-
-
-          difference.penalty <-function(m,p,K,periodicity=periodicity){
-
-            # parameter  m: difference order
-            # parameter  p: degree of B-splines
-            # parameter  K: number of interior knots
-            c = rep(0,m+1)
-
-            for(i in 0:m)
-              c[i+1] = (-1)^(i+1)*factorial(m)/(factorial(i)*factorial(m-i))
-
-            if(!periodicity){
-
-              M = matrix(0,nrow=K+p-m,ncol=K+p)
-              for(i in 1:(K+p-m)) M[i,i:(i+m)] = c
-            }
-            if(periodicity){
-
-              M = matrix(0,nrow=K,ncol=K)
-              for(i in 1:(K-m)) M[i,i:(i+m)] = c
-              for(i in (K-m+1):K) M[i,c(i:K,1:(m-K+i))] = c
-            }
-
-            return(M)
-          }
-
-
-          P = difference.penalty(m,p,K,periodicity)
-          P1 = Matrix(P)
-          P2 = Matrix(t(P))
-          P = P2%*%P1
-
-          MM <- function(A,s,option=1){
-            if(option==2)
-              return(A*(s%*%t(rep(1,dim(A)[2]))))
-            if(option==1)
-              return(A*(rep(1,dim(A)[1])%*%t(s)))
-          }
-
-          if(is.null(weight)) weight <- rep(1,length(x))
-
-
-          B1 = Matrix(MM(t(B),weight))
-          B = Matrix(B)
-          Sig = B1%*%B
-          eSig = eigen(Sig)
-          V = eSig$vectors
-          E = eSig$values
-          if(min(E)<=0.0000001) {#cat("Warning! t(B)%*%B is singular!\n");
-            #cat("A small identity matrix is added!\n");
-            E <- E + 0.000001;
-
-          }
-          Sigi_sqrt = MM(V,1/sqrt(E))%*%t(V)
-
-          #Sigi = V%*%diag(1/E)%*%t(V)
-          tUPU = Sigi_sqrt%*%(P%*%Sigi_sqrt)
-          Esig = eigen(tUPU,symmetric=TRUE)
-          U = Esig$vectors
-          s = Esig$values
-          if(!periodicity) s[(K+p-m+1):(K+p)]=0
-          if(periodicity) s[K] = 0
-          A = B%*%(Sigi_sqrt%*%U)
-
-          List = list(
-            "A" = A,
-            "B" = B,
-            "s" = s,
-            "Sigi.sqrt"=Sigi_sqrt,
-            "U" = U,
-            "P" = P)
-
-          return(List)
-        }
-
 
         ## data dimension
         data_dim = dim(data)
@@ -767,17 +574,17 @@ fui_conc <- function(formula,
           knots_right <- 2*zknots[K2] - zknots[K2-(1:p2)]
           zknots <- c(knots_left,zknots,knots_right)
         }
-        #######################################################################################
+        #######################################################################
         Y = data
 
-        ###################   precalculation for fbps smoothing  ##########################################66
+        ###################   precalculation for fbps smoothing  ##############
 
-        List = pspline.setting(x,xknots,p1,m1,periodicity[1])
+        List = pspline_setting(x,xknots,p1,m1,periodicity[1])
         A1 = List$A
         B1 = List$B
         Bt1 = Matrix(t(as.matrix(B1)))
         s1 = List$s
-        Sigi1_sqrt = List$Sigi.sqrt
+        Sigi1_sqrt = List$Sigi_sqrt
         U1 = List$U
         A01 = Sigi1_sqrt%*%U1
         c1 = length(s1)
@@ -791,7 +598,7 @@ fui_conc <- function(formula,
         U2 = List$U
         A02 = Sigi2_sqrt%*%U2
         c2 = length(s2)
-        #################select optimal penalty ####################################
+        #################select optimal penalty ################################
 
         tr <-function(A){ return(sum(diag(A)))} ## the trace of a square matrix
 
@@ -950,33 +757,42 @@ fui_conc <- function(formula,
 
 
       ## Calculate Method of Moments estimator for G() with potential NNLS correction for diagonals (for variance terms)
-      if(randInt_flag){
-        ## random intercept only
+      if(randint_flag) {
 
-        GTilde <- G.estimate_randInt(data = data,
-                                     out_index = out_index,
-                                     designmat = designmat,
-                                     betaHat = betaHat,
-                                     silent = silent)
+        message("Testing integration of G_estimate_randint")
 
-        if(silent == FALSE) print("Step 3.1.2: Smooth G")
+        GTilde <- G_estimate_randint(
+          data = data, out_index = out_index,
+          designmat = designmat, betaHat = betaHat,
+          silent = silent
+        )
+
+        message("G_estimate_randint successsful.")
+
+        if(silent == FALSE)
+          print("Step 3.1.2: Smooth G")
 
         diag(GTilde) <- HHat[1,] # L x L matrix
         GHat <- fbps_cov(GTilde, search.length = 100, knots = nknots_cov)$Yhat ## fast bivariate smoother # nknots_min
         diag(GHat)[which(diag(GHat) < 0)] <- diag(GTilde)[which(diag(GHat) < 0)]
 
-      }else{
+      } else {
         ## if more random effects than random intercept only
-        if(silent == FALSE) print("Step 3.1.1: Preparation B")
+        if(silent == FALSE)
+          print("Step 3.1.1: Preparation B")
 
-        # generate design matrix for G(s_1, s_2) Method of Moments Linear Regression calculation
+        # generate design matrix for G(s_1, s_2)
+        # Method of Moments Linear Regression calculation
+
         data_cov <- G_generate(data = data,
                                Z_lst = ztlist,
                                RE_table = RE_table,
                                ID = subj_ID)
 
-        ## Method of Moments estimator for G() with potential NNLS correction for diagonals (for variance terms)
-        GTilde <- G.estimate(data = data,
+        ## Method of Moments estimator for G() with potential NNLS correction
+        # for diagonals (for variance terms)
+
+        GTilde <- G_estimate(data = data,
                              out_index = out_index,
                              data_cov = data_cov,
                              ztlist = ztlist,
@@ -1004,7 +820,6 @@ fui_conc <- function(formula,
         ztlist <- NULL
         idx_vec_zlst <- NULL
       }
-
 
       ##########################################################################
       ## Step 3.2
@@ -1125,7 +940,7 @@ fui_conc <- function(formula,
       }
       ## Concatenate vector of 1s to Z because used that way below
       HHat_trim <- NA
-      if(!randInt_flag){
+      if(!randint_flag){
         Z <- data_cov$Z_orig
         qq <- ncol(Z)
         HHat_trim <- array(NA, c(qq, qq, L)) # array for Hhat
@@ -1142,7 +957,7 @@ fui_conc <- function(formula,
       for(s in 1:L){
         V.subj.inv <- c()
         ## we first do inverse of each block matrix then combine them
-        if(!randInt_flag){
+        if(!randint_flag){
           cov.trimmed <- eigenval_trim( matrix(c(HHat[,s], 0)[res_template], template_cols) )
           HHat_trim[,,s] <- cov.trimmed
         }
@@ -1151,7 +966,7 @@ fui_conc <- function(formula,
         XTVinvZ_i <- vector(length = length(ID.number), "list") # store XT * Vinv * Z
         for(id in ID.number){ ## iterate for each subject
           subj.ind <- obs.ind[[as.character(id)]]
-          if(randInt_flag){
+          if(randint_flag){
             Ji <- length(subj.ind)
             V.subj <- matrix(HHat[1,s], nrow = Ji, ncol = Ji) + diag(RHat[s], Ji)
           }else{
@@ -1163,7 +978,7 @@ fui_conc <- function(formula,
 
           XTVinvX <- XTVinvX + crossprod(matrix(designmat[subj.ind,], ncol = p),
                                          V.subj.inv) %*% matrix(designmat[subj.ind,], ncol = p)
-          if(randInt_flag){
+          if(randint_flag){
             XTVinvZ_i[[as.character(id)]] <- crossprod(matrix(designmat[subj.ind,], ncol = p),
                                                        V.subj.inv) %*% matrix(1, nrow = Ji, ncol = 1)
           }else{
@@ -1181,7 +996,7 @@ fui_conc <- function(formula,
       # Calculate the inter-location covariance of betaTilde: Cov(betaTilde(s_1), betaTilde(s_2))
       ## Create cov.beta.tilde.theo to store covariance of betaTilde
       cov.beta.tilde.theo <- array(NA, dim = c(p,p,L,L))
-      if(randInt_flag){
+      if(randint_flag){
         resStart <- cov_organize_start(GHat[1,2]) # arbitrarily start
       }else{
         resStart <- cov_organize_start(GHat[,1,2]) # arbitrarily start
@@ -1194,7 +1009,7 @@ fui_conc <- function(formula,
         for(j in i:L){
           V.cov.subj <- list()
           tmp <- matrix(0, nrow = p, ncol = p) ## store intermediate part
-          if(randInt_flag){
+          if(randint_flag){
             G_use <- GHat[i,j]
           }else{
             G_use <- eigenval_trim( matrix(c(GHat[,i,j], 0)[res_template], template_cols) )
@@ -1266,7 +1081,7 @@ fui_conc <- function(formula,
                   argvals = argvals,
                   randEff = randEff, se_mat = se_mat))
 
-    }else{
+    } else {
 
       ##########################################################################
       ## Bootstrap Inference
@@ -1363,16 +1178,13 @@ fui_conc <- function(formula,
 
           set.seed(seed) # set seed to make sure bootstrap replicate (draws) are correlated across functional domains
 
-          if (boot_type == "residual") {
-            boot_sample <- lmeresampler::bootstrap(
-              model = fit_uni,
-              B = B,
-              type = boot_type,
-              # for residual bootstrap to avoid singularity problems
-              rbootnoise = 0.0001)$replicates
-
+          if(boot_type == "residual"){
+            boot_sample <- lmeresampler::bootstrap(model = fit_uni,
+                                                   B = B,
+                                                   type = boot_type,
+                                                   rbootnoise = 0.0001)$replicates # for residual bootstrap to avoid singularity problems
             betaTilde_boot[,l,] <- t(as.matrix(boot_sample[,1:nrow(betaHat)]))
-          } else if(boot_type %in% c("wild", "reb", "case")) {
+          }else if(boot_type %in% c("wild", "reb", "case") ){
             # for case
             flist <- lme4::getME(fit_uni, "flist")
             re_names <- names(flist)

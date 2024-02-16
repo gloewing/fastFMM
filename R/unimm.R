@@ -3,18 +3,34 @@
 #' Fits a mixed model at location l. Part of Step 1 of the FUI approach.
 #'
 #' @param l location to fit the model
-#' @param data data frame containing all the variables in formula
+#' @param data data frame containing all the variables in formula. Uses value
+#' fed to `fui`.
 #' @param model_formula Character version of a two-sided formula object in lme4
-#' formula syntax, produced within `fui`
-#' @param family GLM family of the response.
+#' formula syntax, produced within `fui`.
+#' @param family GLM family of the response. Uses value fed to `fui`.
 #' @param residuals Logical, indicating whether to save residuals from
-#' unsmoothed LME.
+#' unsmoothed LME. Uses value fed to `fui`.
+#' @param caic Logical, indicating whether to calculate cAIC. Defaults to \code{FALSE}.
+#' @param REs Logical, indicating whether to return random effect estimates.
+#' Uses value fed to `fui`.
+#' @param analytic Logical, indicating whether to use the analytic inference
+#' approach or bootstrap. Uses value fed to `fui`.
 #'
 #' @import lme4
 #'
 #' @return a list containing point estimates, variance estimates, etc.
 
-unimm <- function(l, data, model_formula, family, residuals) {
+unimm <- function(
+    l,
+    data,
+    model_formula,
+    family,
+    residuals,
+    caic,
+    REs,
+    analytic
+  ){
+
   out_index <- grep(paste0("^", model_formula[2]), names(data))
   data$Yl <- unclass(data[,out_index][,l])
 

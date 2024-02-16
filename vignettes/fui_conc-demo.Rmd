@@ -49,16 +49,251 @@ plot_fui(fit_dti)
 
 ```{r}
 lick <- read.csv('func_cov_scienceDA.csv')
-```
-
-```{r}
-unique(lick$id)
+colnames(lick) <- gsub("\\.", "_", colnames(lick))
 ```
 
 ```{r}
 # Photometry is functional outcome
 # Some trials are removed for data cleaning purposes
 # Lick is functional cov
-colnames(lick) 
+
+data <- lick
+formula <- photometry ~ session + trial + iri + lick # + (1 | id) 
+# Organize the input from the model formula
+model_formula <- as.character(formula)
+
+# The end model_formula ends up being
+# What's actually modeled on
+# photometry ~ session + trial + iri + (1 + lick | id)
+
+# session + trial + iri + (1 + lick - 1:lick | lick)
 ```
+
+## Stepwise demo
+
+Basically the code of `fui_conc.R` but split apart. 
+
+### Prepwork
+
+```{r, prep}
+# Default variables
+family <- "gaussian"
+var <- TRUE
+analytic <- TRUE
+parallel <- FALSE
+silent <- FALSE
+argvals <- NULL
+nknots_min <- NULL
+nknots_min_cov <- 35
+smooth_method <- "GCV.Cp"
+splines <- "tp"
+design_mat <- FALSE
+residuals <- FALSE
+G_return <- FALSE
+num_boots <- 500
+boot_type <- NULL
+seed <- 1
+subj_ID <- NULL
+num_cores <- 1
+caic <- FALSE
+REs <- FALSE
+non_neg <- 0
+MoM <- 2
+```
+
+### Step 1: Fit univariate MMs
+
+```{r, step1}
+out_index <- grep(paste0("^", model_formula[2]), names(data))
+
+# functional observations stored in multiple columns
+if (length(out_index) != 1) { 
+  L <- length(out_index)
+} else { 
+  # observations stored as a matrix in one column using the I() function
+  L <- ncol(data[, out_index])
+}
+
+argvals <- 1:L
+# Create a matrix to store AICs
+AIC_mat <- matrix(NA, nrow = L, ncol = 2)
+```
+
+#### Step 1.1 
+
+Demonstration of a single fit. 
+
+```{r}
+model_formula
+```
+
+```{r}
+l <- 1
+cov_name <- "lick"
+
+out_index <- grep(paste0("^", model_formula[2]), names(data))
+# Iterate through model formula
+cov_index <- grep(paste0("^", cov_name), names(data))
+
+data$Yl <- unclass(data[, out_index][, l])
+data$fun_cov <- unclass(data[, cov_index][, l])
+
+# Yl ~ session + Xl + iri + (Xl | id)
+# Yl ~ session + fun1l + fun2l
+
+if(family == "gaussian"){
+  fit_uni <- suppressMessages(
+    lmer(
+      formula = stats::as.formula(paste0("Yl ~ (1 + fun_cov | id) + ", model_formula[3])),
+      data = data,
+      control = lmerControl(
+        optimizer = "bobyqa",
+        optCtrl = list(maxfun = 5000)
+      )
+    )
+  )
+} else {
+  fit_uni <- suppressMessages(
+    glmer(
+      formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
+      data = data,
+      family = family,
+      control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))
+    )
+  )
+}
+
+ztlist <- sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )
+```
+
+Get the variance. 
+
+```{r}
+varcorr <- as.data.frame(VarCorr(fit_uni))
+# Extract variance/covariance estimates
+var_random <- varcorr[,4]
+
+# Variance of random components
+ind_var <- which(is.na(varcorr[,3]) & varcorr[,1] != "Residual")
+names(var_random)[ind_var] <- paste0("var.",varcorr[ind_var,1],".",varcorr[ind_var,2])
+
+# variance of the residual components
+names(var_random)[which(varcorr[,1] == "Residual")] <- "var.Residual"
+
+# covariance of random components
+names(var_random)[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))] <-
+  paste0("cov.",
+         varcorr$grp[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))], ".",
+         varcorr$var1[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))], ".",
+         varcorr$var2[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))])
+se_mat <- summary(fit_uni)$coefficients[,2] ## se of fixed effects
+```
+
+Extract `ztlist`. 
+
+```{r}
+ztlist <- sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )
+randint_flag <- FALSE # AX: Can simplify cov if model only contains intercept (not slope)
+# Functional cov that is only fixed can use this speedup
+# No need to debug G_estimate_randint for now
+```
+
+#### Step 1.2 Generate G?
+
+The next couple steps take the Step 3 steps of G estimation and incorporate it into `unimm_conc`. 
+
+May need to be put into a later step, after smoothing. 
+
+Though 
+
+```{r}
+ID <- 'id'
+RE_table <- as.data.frame(VarCorr(fit_uni))
+RE_table <- RE_table[RE_table$grp != "Residual", 1:3]
+
+z_names <- names(ztlist)
+orig <- sapply(ztlist, rowSums)
+colnames(orig) <- z_names
+
+Z <- vector(length = nrow(RE_table), "list")
+idx_vec <- vector(length = nrow(RE_table))
+
+for(j in 1:nrow(RE_table)){
+  # iterate through covariance term names (i.e., random effect terms)
+  cross_term <- !is.na(RE_table$var2)[j]  # cross term (covariance term)
+  re_name <-  RE_table[j, 1] # random effects
+
+
+  re_interact <- FALSE # interaction of random effects
+  ID_flag <- ifelse(re_name == ID, TRUE, FALSE) 
+
+  v2 <- ifelse(is.na(RE_table$var2[j]), "", paste0("_", RE_table$var2[j])) # either a blank or the name of the last variable
+  intrcpt <- ifelse(RE_table$var1[j] == "(Intercept)", TRUE, FALSE )  # intercept term so does not require squaring
+
+  # check to see if this is the cross-term between two random effects (e.g., intercept x slope)
+  if(!cross_term ){
+    # NOT a cross-term (covariance term)
+
+    # find grp -- var1 combination that matches ztlist names (z_names)
+    var1 <- RE_table$var1[j]
+    nm <- paste0( re_name, ".",  var1 ) # name of ztlist (outputted by lme4 getME() )
+    zlst_idx <- which(z_names == nm) # find index of zlst element that has appropriate design matrix
+
+    if(intrcpt){
+      # intercept term (i.e., does not require squaring elements) since indicators squared are just indicators
+      Z[[j]] <- ztlist[[ zlst_idx ]]
+    } else {
+      # not an intercept term (corresponds to random slope so requires squaring elements) -- see below for why we can square instead of doing actual element-wise produt (all other product terms are zero-ed out)
+      Z[[j]] <- (ztlist[[ zlst_idx ]])^2
+    }
+
+  } else {
+    # cross term
+
+    ## since cross term is element-wise product between a random intercept and a random slope, the entries are only non-zero
+    ## when the random intercept is 1 (which are the same for the same factor RE), so we just need to multiple
+    ## the random slope by 2 (to emulate the cross term), all other terms will be 0 (so we can avoid those)
+
+    # find grp -- var1 combination that matches ztlist names (z_names)
+    rand_slope <- RE_table$var2[j] # the cross terms do not use var1, they only use var2 for znames
+    nm <- paste0( re_name, ".",  rand_slope ) # name of ztlist (outputted by lme4 getME() )
+    rand_slope_idx <- which(z_names == nm) # find index of matrix that has appropriate design matrix
+
+    Z[[j]] <- ztlist[[ rand_slope_idx ]] * 2 # element of ztlist corresponding to appropriate random slope (scale by 2 to emulate cross term)
+  }
+
+  # ID flag -- if main ID variable is the only random effect factor for row j of RE_table (like (1 | ID  )   or (variable | ID), then these submatrices are summed across columns )
+  # sum across columns
+
+  if(ID_flag) {
+    Z[[j]] <- matrix( rowSums(Z[[j]]), ncol = 1)
+    colnames(Z[[j]]) <- paste0(RE_table$grp[j], "_", RE_table$var1[j], v2) # name column
+    idx_vec[j] <- 1
+  } else {
+    idx_vec[j] <- ncol(Z[[j]])         # number of columns in matrix
+    colnames(Z[[j]]) <- paste0(RE_table$grp[j], "_", RE_table$var1[j], v2, "_", 1:ncol(Z[[j]]))   # name columns
+  }
+
+}
+```
+
+
+```{r}
+# The planned output for G_generate
+data_cov <- list(data = data, Z_lst = ztlist, RE_table = RE_table, ID = "id")
+```
+
+## Generating G matrices
+
+
+
+## TODO
+
+1. Identify scalar vs. functional covariates
+  1. Can put a matrix as a column by default
+  2. `fui` can accept either format style
+  3. Instead of specifying the name of the func. cov, test if matrix
+2. Test memory-speed tradeoff of
+  1. Calculating Z-matrices when unimm occurs
+  2. 
 
