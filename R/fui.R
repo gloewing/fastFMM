@@ -128,7 +128,8 @@ fui <- function(
   caic = FALSE,
   REs = FALSE,
   non_neg = 0,
-  MoM = 2){
+  MoM = 2
+) {
 
   # If doing parallel computing, set up the number of cores
   if(parallel & !is.integer(num_cores) ) num_cores <- parallel::detectCores() - 1
@@ -140,8 +141,8 @@ fui <- function(
   model_formula <- as.character(formula)
   stopifnot(model_formula[1] == "~" & length(model_formula) == 3)
 
-  # stop function if there are column names with "." to avoid issues with
-  # covariance G() and H() calculations
+  # Stop if there are column names with "." to avoid issues with covariance
+  # G() and H() calculations
   dep_str <- deparse(model_formula[3])
   if(grepl(".", dep_str, fixed = TRUE)){
     # make sure it isn't just a call to all covariates with "Y ~. "
@@ -157,7 +158,7 @@ fui <- function(
   rm(dep_str)
 
 
-# Step 1: Massively univariate mixed models ####################################
+  # 1. Massively univariate mixed models #######################################
 
   if(silent == FALSE) print("Step 1: Fit Massively Univariate Mixed Models")
 
@@ -176,7 +177,10 @@ fui <- function(
   }
 
   if(analytic & !is.null(argvals) & var)
-    message("'argvals' argument is currently only supported for bootstrap. `argvals' ignored: fitting model to ALL points on functional domain")
+    message(
+      "'argvals' argument is currently only supported for bootstrap.
+      `argvals' ignored: fitting model to ALL points on functional domain."
+    )
 
   if(is.null(argvals) | analytic) {
     # Set up the functional domain when not specified
@@ -189,7 +193,10 @@ fui <- function(
   }
 
   if(family == "gaussian" & analytic & L > 400 & var)
-    message("Your functional data is dense! Consider subsampling along the functional domain (i.e., reduce columns of outcome matrix) or using bootstrap inference.")
+    message(
+      "Your functional data is dense!
+      Consider subsampling along the functional domain (i.e., reduce columns of outcome matrix) or using bootstrap inference."
+    )
 
   # Create a matrix to store AICs
   AIC_mat <- matrix(NA, nrow = L, ncol = 2)
@@ -210,7 +217,12 @@ fui <- function(
 
 
   # Obtain betaTilde, fixed effects estimates
-  betaTilde <- t(do.call(rbind, lapply(massmm, '[[', 1)))
+  betaTilde <- t(
+    do.call(
+      rbind,
+      lapply(massmm, '[[', 1)
+    )
+  )
   colnames(betaTilde) <- argvals
 
   # Obtain residuals, AIC, BIC, and random effects estimates (analytic)
@@ -221,9 +233,10 @@ fui <- function(
   AIC_mat <- cbind(mod_aic, mod_bic, mod_caic)
   colnames(AIC_mat) <- c("AIC", "BIC", "cAIC")
 
-  ## residuals
+  ## Store residuals if resids == TRUE
   resids <- NA
-  if(residuals) resids <- suppressMessages(lapply(massmm, '[[', 5) %>% dplyr::bind_cols())
+  if (residuals)
+    resids <- suppressMessages(lapply(massmm, '[[', 5) %>% dplyr::bind_cols())
 
   ## random effects
   if(analytic == TRUE) {
@@ -270,47 +283,54 @@ fui <- function(
 
     # Design matrix
     designmat <- stats::model.matrix(fit_uni)
-    name_random <- as.data.frame(VarCorr(fit_uni))[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3])),3]
+    name_random <- as.data.frame(VarCorr(fit_uni))[
+      which(!is.na(as.data.frame(VarCorr(fit_uni))[, 3])), 3
+    ]
 
     # Names of random effects
     # TODO: make notation for random effects consistent
     # Currently uses both RE and ranEf
     RE_table <- as.data.frame(VarCorr(fit_uni))
-    ranEf_grp <- RE_table[,1]
+    ranEf_grp <- RE_table[, 1]
     RE_table <- RE_table[RE_table$grp != "Residual", 1:3]
     ranEf_grp <- ranEf_grp[ranEf_grp != "Residual"]
-    ztlist <- sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )
+    # AX: Consider using t instead of function(x) t(x)
+    ztlist <- sapply(getME(fit_uni, "Ztlist"), function(x) t(x))
 
     # Check if group contains ":" (hierarchical structure) that requires the
     # group to be specified
 
     group <- massmm[[1]]$group ## group name in the data
-    if(grepl(":", group, fixed = TRUE)){
-      if(is.null(subj_ID)) {
+    if (grepl(":", group, fixed = TRUE)) {
+      if (is.null(subj_ID)) {
         # Assumes the ID name is to the right of the ":"
         group <- str_remove(group, ".*:")
       } else {
-        # Use user-speficied ID if it exists
+        # Use user-specified ID if it exists
         group <- subj_ID
       }
     }
 
-    if(is.null(subj_ID))
+    if (is.null(subj_ID))
       subj_ID <- group
-    randint_flag <- I(length(fit_uni@cnms) == 1 & length(fit_uni@cnms[[group]]) == 1 & fit_uni@cnms[[group]][1] == "(Intercept)")
+
+    # Condition for using G_estimate_randint
+
+    randint_flag <- I(
+      length(fit_uni@cnms) == 1 & length(fit_uni@cnms[[group]]) == 1 & fit_uni@cnms[[group]][1] == "(Intercept)"
+    )
+
     rm(fit_uni)
   }
 
-
-
-# Step 2: Smoothing ############################################################
+  # 2. Smoothing ###############################################################
 
   if(silent == FALSE) print("Step 2: Smoothing")
 
   # Penalized splines smoothing and extract components (analytic)
-  nknots <- min(round(L/2), nknots_min) ## number of knots for regression coefficients
+  nknots <- min(round(L / 2), nknots_min) ## number of knots for regression coefficients
   nknots_cov <- ifelse(is.null(nknots_min_cov), 35, nknots_min_cov) ## number of knots for covariance matrix
-  nknots_fpca <- min(round(L/2), 35)
+  nknots_fpca <- min(round(L / 2), 35)
 
   ## smoothing parameter, spline basis, penalty matrix (analytic)
   if(analytic == TRUE){
@@ -334,21 +354,16 @@ fui <- function(
   rownames(betaHat) <- rownames(betaTilde)
   colnames(betaHat) <- 1:L
 
-# Step 3: Variance #############################################################
+  # 3. Variance ################################################################
 
   # Skip entirely if specified
   if(var == FALSE) {
     if (!silent)
       message("Complete! \n -Use plot_fui() function to plot estimates \n -For more information, run the command:  ?plot_fui")
-
-    return(
-      list(
-        betaHat = betHat, argvals = argvals, aic = AIC_mat
-      )
-    )
+    return(list(betaHat = betHat, argvals = argvals, aic = AIC_mat))
   }
 
-# Step 3A: Analytic inference ##################################################
+  # 3A. Analytic inference #####################################################
 
   # At this point, the function either chooses analytic or bootrap inference
   # Go to bootstrap when var = FALSE
@@ -358,11 +373,10 @@ fui <- function(
   # derivations for Gaussian familyes
 
   if(analytic == TRUE) {
+
     if(silent == FALSE) print("Step 3: Inference (Analytic)")
 
-    #=========================================================================
-    # Step 3.1 ---------------------------------------------------------------
-    #=========================================================================
+    # 3A.1. Preparation ========================================================
 
     if(silent == FALSE) print("Step 3.1: Preparation")
 
@@ -390,156 +404,6 @@ fui <- function(
     HHat[ind_var,][which(HHat[ind_var,] < 0)] <- 0
     RHat <- t(apply(sigmaesqHat, 1, function(b) stats::smooth.spline(x = argvals, y = b)$y))
     RHat[which(RHat < 0)] <- 0
-
-    ### Create a function that estimates covariance G for general cases
-    #### Create a subfunction that estimates non-negative terms on diagonal
-    cov.nnls <- function(data_cov, RE_table, idx_lst, d_temp, designmat,
-                         betaHat, GTilde, non_neg = 0, silent = TRUE){
-
-      if(non_neg == 1){
-        if(silent == FALSE) print("Step 3.1.2: NNLS 1")
-
-        # put constraints on EVERY coef corresponding to columns for one random effect
-        ncol_Z <- ncol(data_cov$Z)
-        var_term_idx <- which(is.na(RE_table$var2)) # find variance terms (that need non-negativity)
-
-        idx_start_end <- rep(NA, ncol_Z ) # initial indices
-        non_negIdx <- do.call(c, lapply(var_term_idx, function(xx) idx_lst[[xx]]   ) ) # concatenate all the terms that correspond to non-negative constraints
-        kk <- ncol_Z - length(non_negIdx) # indices of unconstrained coefficients
-        idx_start_end[1:kk] <- seq(1,ncol_Z)[-non_negIdx] # put remaining terms after
-        idx_start_end[(kk+1):ncol_Z] <- non_negIdx # put unconstrained terms first
-        XX <- as.matrix(data_cov$Z[,idx_start_end]) # reorder to put covariates associated with non-negative coefs in first columns
-        bHat <- rep(NA, dim(GTilde)[1])
-
-        for(i in 1:L){
-          YYi <- (d_temp[,i] - designmat %*% betaHat[,i])^2 # outcome of product of residuals
-          bHat[idx_start_end] <- lsei::pnnls(a = XX, b = YYi, k = kk)$x # nnls
-          GTilde[,i,i]  <- sapply(idx_lst,  function(x) mean(bHat[x]) ) # average over coefficients corresponding to same random effect term
-        }
-
-      }else if(non_neg == 2){
-        if(silent == FALSE) print("Step 3.1.2: NNLS 2")
-
-        # put constraints on AVERAGE over coefs corresponding to columns for one random effect
-        ncol_Z <- ncol(data_cov$Z)
-        ff <- rep(0, nrow(RE_table)) # non-negativity vector
-        eMat <- matrix(0, nrow = nrow(RE_table), ncol = ncol_Z) # constraint vector to be matrix below ( initially make all 0s so we do not place constraints on terms that can be negative)
-        var_term_idx <- which(is.na(RE_table$var2)) # find variance terms (that need non-negativity)
-
-        for(ii in var_term_idx){
-          eMat[ii, idx_lst[[ii]] ] <- 1 # use these sum (and/or average) to enforce constraint on average
-        }
-
-        XX <- as.matrix(data_cov$Z) # reorder to put covariates associated with non-negative coefs in first columns and then transpose design mat for package
-
-        for(i in 1:L){
-          YYi <- (d_temp[,i] - designmat %*% betaHat[,i])^2 # outcome of product of residuals
-          bHat <- lsei::lsei(a = XX, b = YYi, e = eMat, f = ff) # nnls -- allows tiny negative values due to error
-          GTilde[,i,i]  <- sapply(idx_lst,  function(x) mean(bHat[x]) ) # average over coefficients corresponding to same random effect term
-        }
-
-      }
-
-      return(GTilde)
-    }
-
-    ### Create a function that takes in design matrix and names to calculate
-    ### and produce design matrix and indices for summing for G(s_1, s_2)
-    ### covariance matrix OLS regression
-    generate_G <- function(data, Z_lst, RE_table, ID ="id"){
-      # data fed to fui function
-      # Z_lst is the ZTlist (transposed) output from: sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )
-      # RE_table is a table from VarCorr( X ) where X is a lme4 "lmerMod" class object
-      # ID is the name of the ID factor (which determines what we can sum across)
-      # assumes the names of HHat are generated from this same table in same order
-
-      #1) concatenate Z_orig
-      Z_orig <- Z_lst # list where each element will be design submatrix for corresponding term
-      z_names <- names(Z_lst)
-
-      # sum across variables -- this comes from derivations in Overleaf for method of moments estimator of G(s_1, s_2)
-      Z_orig <- sapply(Z_orig, rowSums) # sum all sub matrices for random effects design matrix
-      colnames(Z_orig) <- z_names
-
-      #2) prepare design matrix for regression
-      Z <- vector(length = nrow(RE_table), "list") # list where each element will be design submatrix for corresponding term
-      idx_vec <- vector(length = nrow(RE_table)) # vector where each element are indices of eventual Z matrix corresponding to each term in HHat (for summing in OLS)
-
-      for(j in 1:nrow(RE_table)){
-        # iterate through covariance term names (i.e., random effect terms)
-
-        cross_term <- !is.na(RE_table$var2)[j]  # cross term (covariance term)
-        re_name <-  RE_table[j, 1] # random effects
-
-        # check if interaction
-        if(grepl(":", re_name, fixed = TRUE)){
-          re_interact <- TRUE # interaction of random effects
-          ID_flag <- FALSE # this is always false for interactions of random effects
-        }else{
-          re_interact <- FALSE # interaction of random effects
-          ID_flag <- ifelse(re_name == ID, TRUE, FALSE) # this determines whether the main subject/ID variable is triggered -- indicates we should rowSum across all columns associated with ID
-        }
-
-        v2 <- ifelse(is.na(RE_table$var2[j]), "", paste0("_", RE_table$var2[j])) # either a blank or the name of the last variable
-        intrcpt <- ifelse( RE_table$var1[j] == "(Intercept)", TRUE, FALSE )  # intercept term so does not require squaring
-
-        # check to see if this is the cross-term between two random effects (e.g., intercept x slope)
-        if(!cross_term ){
-          # NOT a cross-term (covariance term)
-
-          # find grp -- var1 combination that matches Z_lst names (z_names)
-          var1 <- RE_table$var1[j]
-          nm <- paste0( re_name, ".",  var1 ) # name of Z_lst (outputted by lme4 getME() )
-          zlst_idx <- which(z_names == nm) # find index of zlst element that has appropriate design matrix
-
-          if(intrcpt){
-            # intercept term (i.e., does not require squaring elements) since indicators squared are just indicators
-            Z[[j]] <- Z_lst[[ zlst_idx ]]
-          }else{
-            # not an intercept term (corresponds to random slope so requires squaring elements) -- see below for why we can square instead of doing actual element-wise produt (all other product terms are zero-ed out)
-            Z[[j]] <- (Z_lst[[ zlst_idx ]])^2
-          }
-
-        }else{
-          # cross term
-
-          ## since cross term is element-wise product between a random intercept and a random slope, the entries are only non-zero
-          ## when the random intercept is 1 (which are the same for the same factor RE), so we just need to multiple
-          ## the random slope by 2 (to emulate the cross term), all other terms will be 0 (so we can avoid those)
-
-          # find grp -- var1 combination that matches Z_lst names (z_names)
-          rand_slope <- RE_table$var2[j] # the cross terms do not use var1, they only use var2 for znames
-          nm <- paste0( re_name, ".",  rand_slope ) # name of Z_lst (outputted by lme4 getME() )
-          rand_slope_idx <- which(z_names == nm) # find index of matrix that has appropriate design matrix
-
-          Z[[j]] <- Z_lst[[ rand_slope_idx ]] * 2 # element of Z_lst corresponding to appropriate random slope (scale by 2 to emulate cross term)
-        }
-
-        # ID flag -- if main ID variable is the only random effect factor for row j of RE_table (like (1 | ID  )   or (variable | ID), then these submatrices are summed across columns )
-        # sum across columns
-
-        if(ID_flag){
-          Z[[j]] <- matrix( rowSums(Z[[j]]), ncol = 1)
-          colnames(Z[[j]]) <- paste0(RE_table$grp[j], "_", RE_table$var1[j], v2) # name column
-          idx_vec[j] <- 1
-        }else{
-          idx_vec[j] <- ncol(Z[[j]])         # number of columns in matrix
-          colnames(Z[[j]]) <- paste0(RE_table$grp[j], "_", RE_table$var1[j], v2, "_", 1:ncol(Z[[j]]))   # name columns
-        }
-
-      }
-
-      idx_vec <- c(0, cumsum(idx_vec))
-      idx_lst <- sapply( seq_along(1:nrow(RE_table)),  function(x)   (idx_vec[x] + 1):(idx_vec[x+1]) ) # column indices
-      Z <- do.call(cbind, Z) # concatenate
-
-      return( list(Z = Z,
-                   Z_orig = Z_orig,
-                   idx_lst = idx_lst,
-                   idx_vec = idx_vec[-1])
-      )
-
-    }
 
     # TODO: Place this in its own function
     # Also needs to call `select_knots` and `pspline_setting` w/in the pkg
@@ -639,7 +503,9 @@ fui <- function(
       c2 = length(s2)
       #################select optimal penalty ################################
 
-      tr <-function(A){ return(sum(diag(A)))} ## the trace of a square matrix
+      # Trace of square matrix
+      tr <-function(A)
+        return(sum(diag(A)))
 
       Ytilde = Bt1%*%(Y%*%B2)
       Ytilde = t(A01)%*%Ytilde%*%A02
@@ -798,72 +664,85 @@ fui <- function(
     ## Calculate Method of Moments estimator for G() with potential NNLS correction for diagonals (for variance terms)
     if(randint_flag) {
 
-      message("Testing integration of estimate_G_randint")
+      message("Testing integration of G_estimate_randint")
 
-      GTilde <- estimate_G_randint(
+      GTilde <- G_estimate_randint(
         data = data, out_index = out_index,
         designmat = designmat, betaHat = betaHat,
         silent = silent
       )
 
-      message("estimate_G_randint successsful.")
+      message("G_estimate_randint successsful.")
 
       if(silent == FALSE)
         print("Step 3.1.2: Smooth G")
 
       diag(GTilde) <- HHat[1,] # L x L matrix
-      GHat <- fbps_cov(GTilde, search.length = 100, knots = nknots_cov)$Yhat ## fast bivariate smoother # nknots_min
+      # Fast bivariate smoother
+      # nknots_min
+      GHat <- fbps_cov(
+        GTilde,
+        search.length = 100,
+        knots = nknots_cov
+      )$Yhat
       diag(GHat)[which(diag(GHat) < 0)] <- diag(GTilde)[which(diag(GHat) < 0)]
 
     } else {
       ## if more random effects than random intercept only
-      if(silent == FALSE)
+      if (silent == FALSE)
         print("Step 3.1.1: Preparation B")
 
       # generate design matrix for G(s_1, s_2)
       # Method of Moments Linear Regression calculation
 
-      data_cov <- generate_G(data = data,
-                             Z_lst = ztlist,
-                             RE_table = RE_table,
-                             ID = subj_ID)
+      data_cov <- G_generate(
+        data = data,
+        Z_lst = ztlist,
+        RE_table = RE_table,
+        ID = subj_ID
+      )
 
       ## Method of Moments estimator for G() with potential NNLS correction
       # for diagonals (for variance terms)
 
-      GTilde <- estimate_G(data = data,
-                           out_index = out_index,
-                           data_cov = data_cov,
-                           ztlist = ztlist,
-                           designmat = designmat,
-                           betaHat = betaHat,
-                           HHat = HHat,
-                           RE_table = RE_table,
-                           non_neg = non_neg,
-                           MoM = MoM,
-                           silent = silent) # method of moments estimator
+      GTilde <- G_estimate(
+        data = data,
+        out_index = out_index,
+        data_cov = data_cov,
+        ztlist = ztlist,
+        designmat = designmat,
+        betaHat = betaHat,
+        HHat = HHat,
+        RE_table = RE_table,
+        non_neg = non_neg,
+        MoM = MoM,
+        silent = silent
+      )
 
       if(silent == FALSE) print("Step 3.1.2: Smooth G")
 
       ## smooth GHat
       GHat <- GTilde
-      for(r in 1:nrow(HHat)){
+      for (r in 1:nrow(HHat)) {
         diag(GTilde[r,,]) <- HHat[r,]
-        GHat[r,,] <- fbps_cov(GTilde[r,,], search.length = 100, knots = nknots_cov)$Yhat # , knots = nknots_min
+        GHat[r,,] <- fbps_cov(
+          GTilde[r,,],
+          search.length = 100,
+          knots = nknots_cov # nknots_min
+        )$Yhat
       }
-      diag(GHat[r,,])[which(diag(GHat[r,,]) < 0)] <- diag(GTilde[r,,])[which(diag(GHat[r,,]) < 0)]
+      diag(GHat[r,,])[which(diag(GHat[r,,]) < 0)] <-
+        diag(GTilde[r,,])[which(diag(GHat[r,,]) < 0)]
     }
 
     # For return values below
-    if(!design_mat ){
+    if (!design_mat) {
       ztlist <- NULL
       idx_vec_zlst <- NULL
     }
 
+    # 3.2 First step ===========================================================
 
-    ##########################################################################
-    ## Step 3.2
-    ##########################################################################
     if(silent == FALSE) print("Step 3.2: First step")
 
     # Calculate the intra-location variance of betaTilde: Var(betaTilde(s))
@@ -889,7 +768,7 @@ fui <- function(
 
     ### Create a function that organizes covariance matrices correctly based on RE table
     # use this to find indices to feed into  cov_organize  function above
-    cov_organize_start <- function(cov_vec){
+    cov_organize_start <- function(cov_vec) {
       # assumes each set of cov for 2 preceeding variance terms ofrandom effects
       # MAY NEED TO BE UPDATED FOR MORE COMPLICATED RANDOM EFFECT STRUCTURES
       # the order it spits out is the order given by cov_vec (we use (sort below))

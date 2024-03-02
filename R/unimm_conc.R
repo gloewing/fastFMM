@@ -26,16 +26,16 @@
 # TODO: generalize to multiple functional cov
 
 unimm_conc <- function(
-    l,
-    data,
-    model_formula,
-    family,
-    residuals,
-    caic,
-    REs,
-    analytic,
-    fun_cov
-  ){
+  l,
+  data,
+  model_formula,
+  family,
+  residuals,
+  caic,
+  REs,
+  analytic,
+  fun_cov
+) {
 
   out_index <- grep(paste0("^", model_formula[2]), names(data))
   data$Yl <- unclass(data[,out_index][,l])
@@ -45,7 +45,7 @@ unimm_conc <- function(
   data$Yl <- unclass(data[, out_index][, l])
   data$fun_cov <- unclass(data[, cov_index][, l])
 
-  if(family == "gaussian"){
+  if (family == "gaussian") {
     fit_uni <- suppressMessages(
       lmer(
         formula = stats::as.formula(paste0("Yl ~ fun_cov + ", model_formula[3])),
@@ -57,7 +57,7 @@ unimm_conc <- function(
       )
     )
   } else {
-    fit_uni <- suppressMessages(
+  fit_uni <- suppressMessages(
       glmer(
         formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
         data = data,

@@ -1,3 +1,21 @@
+#' Creates the design matrix that allows for estimation of G
+#'
+#' The function `G_estimate` uses a MoM method,
+#' and `G_estimate_randint` is a special case of `G_estimate`.
+#'
+#' Because `G_estimate`
+#'
+#' @param data Data frame that contains the predictors and outcome
+#' @param Z_lst Transposed list of Z matrices from the univariate fits
+#' @param RE_table Table of random effects and interactions, generated from the
+#' `lmerMod` object
+#' @param ID Name of the ID factor, assuming names of `HHat` are generated from
+#' the same table in the same order
+#'
+#' @return List containing Z matrices and indices (unsure)
+#'
+#' @import lme4
+
 G_generate <- function(data, Z_lst, RE_table, ID ="id"){
   # data fed to fui function
   # Z_lst is the ZTlist (transposed) output from: sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )
@@ -46,13 +64,13 @@ G_generate <- function(data, Z_lst, RE_table, ID ="id"){
 
       if(intrcpt){
         # intercept term (i.e., does not require squaring elements) since indicators squared are just indicators
-        Z[[j]] <- Z_lst[[ zlst_idx ]]
+        Z[[j]] <- Z_lst[[zlst_idx]]
       }else{
         # not an intercept term (corresponds to random slope so requires squaring elements) -- see below for why we can square instead of doing actual element-wise produt (all other product terms are zero-ed out)
-        Z[[j]] <- (Z_lst[[ zlst_idx ]])^2
+        Z[[j]] <- (Z_lst[[zlst_idx]])^2
       }
 
-    }else{
+    } else {
       # cross term
 
       ## since cross term is element-wise product between a random intercept and a random slope, the entries are only non-zero
@@ -70,25 +88,39 @@ G_generate <- function(data, Z_lst, RE_table, ID ="id"){
     # ID flag -- if main ID variable is the only random effect factor for row j of RE_table (like (1 | ID  )   or (variable | ID), then these submatrices are summed across columns )
     # sum across columns
 
-    if(ID_flag){
+    if (ID_flag) {
       Z[[j]] <- matrix( rowSums(Z[[j]]), ncol = 1)
-      colnames(Z[[j]]) <- paste0(RE_table$grp[j], "_", RE_table$var1[j], v2) # name column
+      colnames(Z[[j]]) <- paste0(
+        RE_table$grp[j], "_",
+        RE_table$var1[j],
+        v2
+      ) # name column
       idx_vec[j] <- 1
-    }else{
+    } else {
       idx_vec[j] <- ncol(Z[[j]])         # number of columns in matrix
-      colnames(Z[[j]]) <- paste0(RE_table$grp[j], "_", RE_table$var1[j], v2, "_", 1:ncol(Z[[j]]))   # name columns
+      colnames(Z[[j]]) <- paste0(
+        RE_table$grp[j], "_",
+        RE_table$var1[j], v2, "_",
+        1:ncol(Z[[j]])
+      )   # name columns
     }
 
   }
 
   idx_vec <- c(0, cumsum(idx_vec))
-  idx_lst <- sapply( seq_along(1:nrow(RE_table)),  function(x)   (idx_vec[x] + 1):(idx_vec[x+1]) ) # column indices
+  idx_lst <- sapply(
+    seq_along(1:nrow(RE_table)),
+    function(x) (idx_vec[x] + 1):(idx_vec[x+1])
+  ) # column indices
   Z <- do.call(cbind, Z) # concatenate
 
-  return( list(Z = Z,
-               Z_orig = Z_orig,
-               idx_lst = idx_lst,
-               idx_vec = idx_vec[-1])
+  return(
+    list(
+      Z = Z,
+      Z_orig = Z_orig,
+      idx_lst = idx_lst,
+      idx_vec = idx_vec[-1]
+    )
   )
 
 }

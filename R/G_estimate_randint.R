@@ -1,14 +1,16 @@
-#' Estimate covariance of random components G(s1, s2)
+#' Special case of estimating covariance of random components G(s1, s2)
 #'
 #' Estimates the covariance matrix G for random intercepts that occurs at Step 3
 #' of the FUI method. A helper function for `fui`.
 #'
-#' @param data
-#' @param out_index
-#' @param designmat
-#' @param betaHat,
+#' @param data A data frame containing all variables in formula
+#' @param out_index Indices that contain the outcome variables
+#' @param designmat Design matrix of the linear models
+#' @param betaHat Estimated functional fixed effects
 #' @param silent Whether to print the step description during calculations.
-#' Defaults to `FALSE`.
+#' Defaults to `TRUE`.
+#'
+#' @return An estimation of the G matrix
 #'
 #' @importFrom Matrix crossprod
 
@@ -18,11 +20,12 @@
 ### Create a function that estimates covariance G for random intercepts
 
 G_estimate_randint <- function(
-    data,
-    out_index,
-    designmat,
-    betaHat,
-    silent = TRUE){
+  data,
+  out_index,
+  designmat,
+  betaHat,
+  silent = TRUE
+) {
 
   if(silent == FALSE)
     print("Step 3.1.1: Method of Moments Covariance Estimator Random Intercept")

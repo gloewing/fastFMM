@@ -1,4 +1,6 @@
-#' Fast Univariate Inference for Longitudinal Functional Models
+#' Concurrent FUI
+#'
+#' The concurrent version of `fui.R`.
 #'
 #' Fit a function-on-scalar regression model for longitudinal
 #' functional outcomes and scalar predictors using the Fast Univariate
@@ -104,7 +106,7 @@
 #' fit_dti <- fui(cca ~ case + visit + sex + (1 | ID),
 #'                  data = DTI_use)
 
-fui <- function(
+fui_conc <- function(
   formula,
   data,
   family = "gaussian",
