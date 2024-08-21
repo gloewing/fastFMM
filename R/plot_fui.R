@@ -153,9 +153,15 @@ plot_fui <- function(fuiobj,
 
   }
 
-  do.call("grid.arrange", c(plot_list, nrow = num_row)) # plot
-
-  if(return == TRUE) return(res_list)
+  plot_return <- do.call("grid.arrange", c(plot_list, nrow = num_row)) # plot
+  plot_return # show plots
+  
+  if(return == TRUE){
+    res_list$plot <- plot_return # save to returned object
+    return(res_list)
+  }else{
+    return(plot_return)
+  }
 
 }
 
