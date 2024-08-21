@@ -15,6 +15,8 @@
 #' @return List containing Z matrices and indices (unsure)
 #'
 #' @import lme4
+#'
+#' @export
 
 G_generate <- function(data, Z_lst, RE_table, ID ="id"){
   # data fed to fui function

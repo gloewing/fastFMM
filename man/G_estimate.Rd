@@ -23,7 +23,7 @@ G_estimate(
 
 \item{out_index}{Indices that contain the outcome variables}
 
-\item{data_cov}{A matrix of covariance of the data}
+\item{data_cov}{(unsure) A matrix of covariance of the data}
 
 \item{ztlist}{A list of the design matrices corresponding to random effects}
 
@@ -47,5 +47,9 @@ An estimation of the G matrix
 }
 \description{
 Estimates the covariance matrix G for random intercepts that occurs at Step 3
-of the FUI method. A helper function for `fui`.
+of the FUI method. Applies when `G_generate` cannot provide an analytic
+solution.
+}
+\details{
+A helper function for `fui`.
 }

@@ -14,7 +14,7 @@
 #' @param non_neg (unsure), defaults to 0
 #' @param silent Whether to print the step. Defaults to `TRUE`.
 #'
-#'
+#' @export
 
 cov.nnls <- function(
   data,

@@ -9,6 +9,8 @@
 #' @param p Numeric, the degrees of B-splines. Default = 3.
 #' @param option Character, knot spacing, can be `"equally-spaced"` or
 #' `"quantile"`
+#'
+#' @export
 
 # TODO: figure out what `t` is and whether p is num or int
 

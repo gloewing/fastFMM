@@ -11,6 +11,8 @@
 #'
 #' @importFrom splines spline.des
 #' @import Matrix
+#'
+#' @export
 
 pspline_setting <- function(
   x,

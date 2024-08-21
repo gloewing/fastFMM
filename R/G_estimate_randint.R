@@ -13,6 +13,8 @@
 #' @return An estimation of the G matrix
 #'
 #' @importFrom Matrix crossprod
+#'
+#' @export
 
 # TODO: check function dependencies
 
@@ -30,8 +32,9 @@ G_estimate_randint <- function(
   if(silent == FALSE)
     print("Step 3.1.1: Method of Moments Covariance Estimator Random Intercept")
 
+  L <- length(out_index)
   GTilde <- matrix(NA, nrow = L, ncol = L)
-  vdm <- crossprod(betaHat,  var(designmat) %*% betaHat)
+  vdm <- crossprod(betaHat, var(designmat) %*% betaHat)
   d_temp <- data[,out_index]
 
   for(i in 1:L) {
