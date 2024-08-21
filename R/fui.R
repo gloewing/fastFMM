@@ -101,8 +101,10 @@
 #' ## random intercept only
 #' set.seed(1)
 #' DTI_use <- DTI[DTI$ID %in% sample(DTI$ID, 10),]
-#' fit_dti <- fui(cca ~ case + visit + sex + (1 | ID),
-#'                  data = DTI_use)
+#' fit_dti <- fui(
+#'   cca ~ case + visit + sex + (1 | ID),
+#'   data = DTI_use
+#' )
 
 fui <- function(
   formula,
@@ -131,11 +133,14 @@ fui <- function(
   MoM = 2
 ) {
 
+  # 0. Setup ###################################################################
+
   # If doing parallel computing, set up the number of cores
-  if(parallel & !is.integer(num_cores) ) num_cores <- parallel::detectCores() - 1
+  if (parallel & !is.integer(num_cores))
+    num_cores <- parallel::detectCores() - 1
 
   # For non-Gaussian family, only do bootstrap inference
-  if(family != "gaussian") analytic <- FALSE
+  if (family != "gaussian") analytic <- FALSE
 
   # Organize the input from the model formula
   model_formula <- as.character(formula)
@@ -144,14 +149,19 @@ fui <- function(
   # Stop if there are column names with "." to avoid issues with covariance
   # G() and H() calculations
   dep_str <- deparse(model_formula[3])
-  if(grepl(".", dep_str, fixed = TRUE)){
+  if (grepl(".", dep_str, fixed = TRUE)) {
     # make sure it isn't just a call to all covariates with "Y ~. "
-    dep_str_rm <- substr(dep_str, 3, nchar(dep_str)) # remove first character of parsed formula string and check
-    if(grepl(".", dep_str_rm, fixed = TRUE)){
+    # remove first character of parsed formula string and check
+    dep_str_rm <- substr(dep_str, 3, nchar(dep_str))
+    if (grepl(".", dep_str_rm, fixed = TRUE)) {
       stop(
-        'Remove the character "." from all non-functional covariate names and rerun fui()
-         - E.g., change "X.1" to "X_1"
-         - The string "." *should* be kept in functional outcome names (e.g., "Y.1" *is* proper naming).'
+        paste0(
+          'Remove the character "." from all non-functional covariate names ',
+          'and rerun fui()', '\n',
+          '- E.g., change "X.1" to "X_1"', '\n',
+          '- The string "." *should* be kept in functional outcome names ',
+          '(e.g., "Y.1" *is* proper naming).'
+        )
       )
     }
   }
@@ -160,48 +170,59 @@ fui <- function(
 
   # 1. Massively univariate mixed models #######################################
 
-  if(silent == FALSE) print("Step 1: Fit Massively Univariate Mixed Models")
+  if (silent == FALSE)
+    print("Step 1: Fit Massively Univariate Mixed Models")
 
   # Obtain the dimension of the functional domain
-
   # Find indices that start with the outcome name
   out_index <- grep(paste0("^", model_formula[2]), names(data))
 
   # Read the full list of columns or the matrix column
+  # Set L depending on whether out_index is multiple columns or a matrix
   if (length(out_index) != 1) {
-    # functional observations stored in multiple columns
+    # Multiple columns
     L <- length(out_index)
   } else {
-    # observations stored as a matrix in one column using the I() function
+    # Matrix column
     L <- ncol(data[,out_index])
   }
 
-  if(analytic & !is.null(argvals) & var)
+  if (analytic & !is.null(argvals) & var)
     message(
-      "'argvals' argument is currently only supported for bootstrap.
-      `argvals' ignored: fitting model to ALL points on functional domain."
+      paste(
+        "'argvals' argument is currently only supported for bootstrap.",
+        "`argvals' ignored: fitting model to ALL points on functional domain"
+      )
     )
 
-  if(is.null(argvals) | analytic) {
-    # Set up the functional domain when not specified
+  if (is.null(argvals) | analytic) {
     argvals <- 1:L
   } else {
-    # when only using a subset of the functional domain
-    if(max(argvals) > L)
-      stop("Maximum index specified in argvals is greater than the total number of columns for the functional outcome")
+    if (max(argvals) > L)
+      stop(
+        paste0(
+          "Maximum index specified in argvals is greater than",
+          "the total number of columns for the functional outcome"
+        )
+      )
     L <- length(argvals)
   }
 
-  if(family == "gaussian" & analytic & L > 400 & var)
+  if (family == "gaussian" & analytic & L > 400 & var)
     message(
-      "Your functional data is dense!
-      Consider subsampling along the functional domain (i.e., reduce columns of outcome matrix) or using bootstrap inference."
+      paste(
+        "Your functional data is dense!",
+        "Consider subsampling along the functional domain",
+        "(i.e., reduce columns of outcome matrix)",
+        "or using bootstrap inference."
+      )
     )
 
   # Create a matrix to store AICs
   AIC_mat <- matrix(NA, nrow = L, ncol = 2)
 
   # Fit massively univariate mixed models in parallel
+  # Calls unimm to fit each individual lmer model
   massmm <- mclapply(
     argvals,
     unimm,
@@ -217,33 +238,33 @@ fui <- function(
 
 
   # Obtain betaTilde, fixed effects estimates
-  betaTilde <- t(
-    do.call(
-      rbind,
-      lapply(massmm, '[[', 1)
-    )
-  )
+  betaTilde <- t(do.call(rbind, lapply(massmm, '[[', 1)))
   colnames(betaTilde) <- argvals
 
   # Obtain residuals, AIC, BIC, and random effects estimates (analytic)
   ## AIC/BIC
-  mod_aic <- do.call(c, lapply(massmm, '[[', 3))
-  mod_bic <- do.call(c, lapply(massmm, '[[', 4))
-  mod_caic <- do.call(c, lapply(massmm, '[[', 6))
+  mod_aic <- do.call(c, lapply(massmm, '[[', 'aic'))
+  mod_bic <- do.call(c, lapply(massmm, '[[', 'bic'))
+  mod_caic <- do.call(c, lapply(massmm, '[[', 'caic'))
   AIC_mat <- cbind(mod_aic, mod_bic, mod_caic)
   colnames(AIC_mat) <- c("AIC", "BIC", "cAIC")
 
   ## Store residuals if resids == TRUE
   resids <- NA
   if (residuals)
-    resids <- suppressMessages(lapply(massmm, '[[', 5) %>% dplyr::bind_cols())
+    resids <- suppressMessages(
+      lapply(massmm, '[[', 'residuals') %>% dplyr::bind_cols()
+    )
 
   ## random effects
-  if(analytic == TRUE) {
-    if(REs) {
+  if (analytic == TRUE) {
+    if (REs) {
       randEff <- suppressMessages(
         simplify2array(
-          lapply(lapply(massmm, '[[', 7), function(x) as.matrix(x[[1]]))
+          lapply(
+            lapply(massmm, '[[', 're_df'),
+            function(x) as.matrix(x[[1]])
+          )
         )
       )  # will need to change [[1]] to random effect index if multiple REs
     } else {
@@ -255,14 +276,16 @@ fui <- function(
   }
 
   # Obtain variance estimates of random effects (analytic)
-  if(analytic == TRUE) {
-    var_random <- t(do.call(rbind, lapply(massmm, '[[', 8)))
-    sigmaesqHat <- var_random["var.Residual",,drop = FALSE]
-    sigmausqHat <- var_random[which(rownames(var_random) != "var.Residual"),,drop = FALSE]
+  if (analytic == TRUE) {
+    var_random <- t(do.call(rbind, lapply(massmm, '[[', 'var_random')))
+    sigmaesqHat <- var_random["var.Residual", , drop = FALSE]
+    sigmausqHat <- var_random[
+      which(rownames(var_random) != "var.Residual"), , drop = FALSE
+    ]
 
     # Fit a fake model to obtain design matrix
-    data$Yl <- unclass(data[,out_index][,1])
-    if(family == "gaussian"){
+    data$Yl <- unclass(data[,out_index][, 1])
+    if (family == "gaussian") {
       fit_uni <- suppressMessages(
         lmer(
           formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
@@ -288,8 +311,7 @@ fui <- function(
     ]
 
     # Names of random effects
-    # TODO: make notation for random effects consistent
-    # Currently uses both RE and ranEf
+    # TODO: make notation for random effects consistent (choose RE or ranEf)
     RE_table <- as.data.frame(VarCorr(fit_uni))
     ranEf_grp <- RE_table[, 1]
     RE_table <- RE_table[RE_table$grp != "Residual", 1:3]
@@ -325,84 +347,137 @@ fui <- function(
 
   # 2. Smoothing ###############################################################
 
-  if(silent == FALSE) print("Step 2: Smoothing")
+  if (silent == FALSE) print("Step 2: Smoothing")
 
-  # Penalized splines smoothing and extract components (analytic)
-  nknots <- min(round(L / 2), nknots_min) ## number of knots for regression coefficients
-  nknots_cov <- ifelse(is.null(nknots_min_cov), 35, nknots_min_cov) ## number of knots for covariance matrix
+  # 2.1 Penalized splines smoothing and extract components (analytic) ==========
+
+  # Number of knots for regression coefficients
+  nknots <- min(round(L / 2), nknots_min)
+  # Number of knots for covariance matrix
+  nknots_cov <- ifelse(is.null(nknots_min_cov), 35, nknots_min_cov)
   nknots_fpca <- min(round(L / 2), 35)
 
-  ## smoothing parameter, spline basis, penalty matrix (analytic)
-  if(analytic == TRUE){
-    p <- nrow(betaTilde) ## number of fixed effects parameters
+  # Smoothing parameter, spline basis, penalty matrix (analytic)
+  if (analytic == TRUE) {
+    p <- nrow(betaTilde) # Number of fixed effects parameters
     betaHat <- matrix(NA, nrow = p, ncol = L)
     lambda <- rep(NA, p)
-    for(r in 1:p){
-      fit_smooth <- gam(betaTilde[r,] ~ s(argvals, bs = splines, k = (nknots + 1)), method = smooth_method)
+
+    for (r in 1:p) {
+      fit_smooth <- gam(
+        betaTilde[r,] ~ s(argvals, bs = splines, k = (nknots + 1)),
+        method = smooth_method
+      )
       betaHat[r,] <- fit_smooth$fitted.values
-      lambda[r] <- fit_smooth$sp ## smoothing parameter
+      lambda[r] <- fit_smooth$sp # Smoothing parameter
     }
-    sm <- smoothCon(s(argvals, bs = splines, k = (nknots + 1)),
-                    data=data.frame(argvals=argvals),
-                    absorb.cons=TRUE)
-    S <- sm[[1]]$S[[1]] ## penalty matrix
-    B <- sm[[1]]$X ## basis functions
+
+    sm <- smoothCon(
+      s(argvals, bs = splines, k = (nknots + 1)),
+      data = data.frame(argvals = argvals),
+      absorb.cons = TRUE
+    )
+    S <- sm[[1]]$S[[1]] # Penalty matrix
+    B <- sm[[1]]$X # Basis functions
     rm(fit_smooth, sm)
-  }else{
-    betaHat <- t(apply(betaTilde, 1, function(x) gam(x ~ s(argvals, bs = splines, k = (nknots + 1)), method = smooth_method)$fitted.values))
+  } else {
+    betaHat <- t(
+      apply(
+        betaTilde,
+        1,
+        function(x) {
+          gam(
+            x ~ s(argvals, bs = splines, k = (nknots + 1)),
+            method = smooth_method
+          )$fitted.values
+        }
+      )
+    )
   }
   rownames(betaHat) <- rownames(betaTilde)
   colnames(betaHat) <- 1:L
 
-  # 3. Variance ################################################################
+  # Variance ################################################################
 
-  # Skip entirely if specified
-  if(var == FALSE) {
-    if (!silent)
-      message("Complete! \n -Use plot_fui() function to plot estimates \n -For more information, run the command:  ?plot_fui")
-    return(list(betaHat = betHat, argvals = argvals, aic = AIC_mat))
+  # End the function call if no variance calculation is required
+  if (var == FALSE) {
+    if (!silent) {
+      message(
+        paste0(
+          "Complete!", "\n",
+          "-Use plot_fui() function to plot estimates", "\n",
+          "-For more information, run the command:  ?plot_fui"
+        )
+      )
+    }
+    return(list(betaHat = betaHat, argvals = argvals, aic = AIC_mat))
   }
 
-  # 3A. Analytic inference #####################################################
+  # 3. Analytic inference #####################################################
 
   # At this point, the function either chooses analytic or bootrap inference
   # Go to bootstrap when var = FALSE
 
   # TODO: Replace this ifelse statement with new functions
   # Currently difficult to track that this region only contains the analytic
-  # derivations for Gaussian familyes
+  # derivations for Gaussian families
 
-  if(analytic == TRUE) {
+  if (analytic == TRUE) {
 
-    if(silent == FALSE) print("Step 3: Inference (Analytic)")
+    if (silent == FALSE) print("Step 3: Inference (Analytic)")
 
-    # 3A.1. Preparation ========================================================
+    # 3.1 Preparation ========================================================
 
-    if(silent == FALSE) print("Step 3.1: Preparation")
+    if (silent == FALSE) print("Step 3.1: Preparation")
 
     # Fill in missing values of the raw data using FPCA
-    if(length(which(is.na(data[,out_index]))) != 0){
-      message(paste("Imputing", length(out_index), "values in functional response with longitudinal functional PCA" ))
-      if(length(out_index) != 1){
-        tmp <- as.matrix(data[,out_index])
-        tmp[which(is.na(tmp))] <-
-          suppressWarnings( refund::fpca.face(tmp,
-                                              argvals = argvals,
-                                              knots = nknots_fpca)$Yhat[which(is.na(tmp))] )
+    if (length(which(is.na(data[,out_index]))) != 0) {
+
+      message(
+        paste(
+          "Imputing", length(out_index),
+          "values in functional response with longitudinal functional PCA"
+        )
+      )
+
+      if (length(out_index) != 1) {
+        tmp <- as.matrix(data[, out_index])
+        tmp[which(is.na(tmp))] <- suppressWarnings(
+          refund::fpca.face(
+            tmp,
+            argvals = argvals,
+            knots = nknots_fpca
+          )$Yhat[which(is.na(tmp))]
+        )
         data[,out_index] <- tmp
-      }else{
-        data[,out_index][which(is.na(data[,out_index]))] <-
-          suppressWarnings( refund::fpca.face(as.matrix(data[,out_index]),
-                                              argvals = argvals,
-                                              knots = nknots_fpca)$Yhat[which(is.na(data[,out_index]))] )
+      } else {
+        data[, out_index][which(is.na(data[, out_index]))] <- suppressWarnings(
+          refund::fpca.face(
+            as.matrix(data[, out_index]),
+            argvals = argvals,
+            knots = nknots_fpca
+          )$Yhat[which(is.na(data[, out_index]))]
+        )
       }
     }
 
     # Derive variance estimates of random components: H(s), R(s)
-    HHat <- t(apply(sigmausqHat, 1, function(b) stats::smooth.spline(x = argvals, y = b)$y))
-    ind_var <- which(grepl("var", rownames(HHat)) == TRUE) ## index of variance
+    HHat <- t(
+      apply(
+        sigmausqHat,
+        1,
+        function(b) stats::smooth.spline(x = argvals, y = b)$y
+      )
+    )
+    ind_var <- which(grepl("var", rownames(HHat)) == TRUE)
     HHat[ind_var,][which(HHat[ind_var,] < 0)] <- 0
-    RHat <- t(apply(sigmaesqHat, 1, function(b) stats::smooth.spline(x = argvals, y = b)$y))
+    RHat <- t(
+      apply(
+        sigmaesqHat,
+        1,
+        function(b) stats::smooth.spline(x = argvals, y = b)$y
+      )
+    )
     RHat[which(RHat < 0)] <- 0
 
     # TODO: Place this in its own function
@@ -414,7 +489,7 @@ fui <- function(
                      periodicity = c(FALSE,FALSE), p=3,m=2,lambda=NULL,
                      selection = "GCV",
                      search.grid = T, search.length = 100, method="L-BFGS-B",
-                     lower= -20, upper=20, control=NULL){
+                     lower= -20, upper=20, control=NULL) {
 
       # return a smoothed matrix using fbps
 
@@ -434,16 +509,16 @@ fui <- function(
       n2 = data_dim[2]
 
       ## subject ID
-      if(is.null(subj)) subj = 1:n2
+      if (is.null(subj)) subj = 1:n2
       subj_unique = unique(subj)
       I = length(subj_unique)
       ## covariates for the two axis
-      if(!is.list(covariates)) {
+      if (!is.list(covariates)) {
 
         x=(1:n1)/n1-1/2/n1; ## if NULL, assume equally distributed
         z = (1:n2)/n2-1/2/n2
       }
-      if(is.list(covariates)){
+      if (is.list(covariates)) {
 
         x = covariates[[1]]
         z = covariates[[2]]
@@ -456,14 +531,14 @@ fui <- function(
       m2 = rep(m,2)[2]
 
       ## knots
-      if(!is.list(knots)){
+      if (!is.list(knots)) {
         K1 = rep(knots,2)[1]
         xknots = select_knots(x,knots=K1,option=knots.option)
         K2 = rep(knots,2)[2]
         zknots = select_knots(z,knots=K2,option=knots.option)
       }
 
-      if(is.list(knots)){
+      if (is.list(knots)) {
 
         xknots = knots[[1]]
         K1 = length(xknots)-1
@@ -511,9 +586,9 @@ fui <- function(
       Ytilde = t(A01)%*%Ytilde%*%A02
       Y_sum = sum(Y^2)
       ytilde = as.vector(Ytilde)
-      if(selection=="iGCV"){
+      if (selection=="iGCV") {
 
-        KH = function(A,B){
+        KH = function(A,B) {
           C = matrix(0,dim(A)[1],dim(A)[2]*dim(B)[2])
           for(i in 1:dim(A)[1])
             C[i,] = Matrix::kronecker(A[i,],B[i,])
@@ -525,7 +600,7 @@ fui <- function(
 
         Y2 = Bt1%*%Y
         Y2 = matrix(t(A01)%*%Y2,c1,n2)
-        for(i in 1:I){
+        for(i in 1:I) {
           sel = (1:n2)[subj==subj_unique[i]]
           len = length(sel)
           G[i] = len
@@ -541,17 +616,17 @@ fui <- function(
         #cat("Processing completed\n")
       }
 
-      fbps_gcv =function(x){
+      fbps_gcv =function(x) {
 
         lambda=exp(x)
         ## two lambda's are the same
-        if(length(lambda)==1)
+        if (length(lambda)==1)
         {
           lambda1 = lambda
           lambda2 = lambda
         }
         ## two lambda's are different
-        if(length(lambda)==2){
+        if (length(lambda)==2) {
           lambda1=lambda[1]
           lambda2=lambda[2]
         }
@@ -563,7 +638,7 @@ fui <- function(
         sigma = Matrix::kronecker(sigma2,sigma1)
         sigma.2 = Matrix::kronecker(sqrt(sigma2),sqrt(sigma1))
 
-        if(selection=="iGCV"){
+        if (selection=="iGCV") {
           d = 1/(1-(1+lambda1*s1)/sigma2_sum*n2)
           gcv = sum((ytilde*sigma)^2) - 2*sum((ytilde*sigma.2)^2)
           gcv = gcv + sum(d^2*g1) - 2*sum(d*g2)
@@ -574,7 +649,7 @@ fui <- function(
 
         }
 
-        if(selection=="GCV") {
+        if (selection=="GCV") {
 
           gcv = sum((ytilde*sigma)^2) - 2*sum((ytilde*sigma.2)^2)
           gcv = Y_sum + gcv
@@ -584,17 +659,17 @@ fui <- function(
         return(gcv)
       }
 
-      fbps_est =function(x){
+      fbps_est =function(x) {
 
         lambda=exp(x)
         ## two lambda's are the same
-        if(length(lambda)==1)
+        if (length(lambda)==1)
         {
           lambda1 = lambda
           lambda2 = lambda
         }
         ## two lambda's are different
-        if(length(lambda)==2){
+        if (length(lambda)==2) {
           lambda1=lambda[1]
           lambda2=lambda[2]
         }
@@ -616,38 +691,38 @@ fui <- function(
         return(result)
       }
 
-      if(is.null(lambda)){
+      if (is.null(lambda)) {
 
-        if(search.grid ==T){
+        if (search.grid ==T) {
           lower2 <- lower1 <- lower[1]
           upper2 <- upper1 <- upper[1]
           search.length2 <- search.length1 <- search.length[1]
-          if(length(lower)==2) lower2 <- lower[2]
-          if(length(upper)==2) upper2 <- upper[2]
-          if(length(search.length)==2) search.length2 <- search.length[2]
+          if (length(lower)==2) lower2 <- lower[2]
+          if (length(upper)==2) upper2 <- upper[2]
+          if (length(search.length)==2) search.length2 <- search.length[2]
 
           Lambda1 = seq(lower1,upper1,length = search.length1)
           lambda.length1 = length(Lambda1)
 
           GCV = rep(0, lambda.length1)
-          for(j in 1:lambda.length1){
+          for(j in 1:lambda.length1) {
             GCV[j] = fbps_gcv(c(Lambda1[j], Lambda1[j]))
           }
 
           location = which.min(GCV)[1]
           j0 = location%%lambda.length1
-          if(j0==0) j0 = lambda.length1
+          if (j0==0) j0 = lambda.length1
           k0 = (location-j0)/lambda.length1+1
           lambda = exp(c(Lambda1[j0], Lambda1[j0]))
         } ## end of search.grid
 
-        if(search.grid == F){
+        if (search.grid == F) {
           fit = stats::optim(0,fbps_gcv,method=method,control=control,
                       lower=lower[1],upper=upper[1])
 
           fit = stats::optim(c(fit$par,fit$par),fbps_gcv,method=method,control=control,
                       lower=lower[1],upper=upper[1])
-          if(fit$convergence>0) {
+          if (fit$convergence>0) {
             expression = paste("Smoothing failed! The code is:",fit$convergence)
             print(expression)
           }
@@ -661,20 +736,23 @@ fui <- function(
     }
 
 
-    ## Calculate Method of Moments estimator for G() with potential NNLS correction for diagonals (for variance terms)
-    if(randint_flag) {
+    ## Calculate Method of Moments estimator for G()
+    # with potential NNLS correction for diagonals (for variance terms)
+    if (randint_flag) {
 
       message("Testing integration of G_estimate_randint")
 
       GTilde <- G_estimate_randint(
-        data = data, out_index = out_index,
-        designmat = designmat, betaHat = betaHat,
+        data = data,
+        out_index = out_index,
+        designmat = designmat,
+        betaHat = betaHat,
         silent = silent
       )
 
       message("G_estimate_randint successsful.")
 
-      if(silent == FALSE)
+      if (silent == FALSE)
         print("Step 3.1.2: Smooth G")
 
       diag(GTilde) <- HHat[1,] # L x L matrix
@@ -688,6 +766,9 @@ fui <- function(
       diag(GHat)[which(diag(GHat) < 0)] <- diag(GTilde)[which(diag(GHat) < 0)]
 
     } else {
+
+      # 3.1.1 Preparation B ----------------------------------------------------
+
       ## if more random effects than random intercept only
       if (silent == FALSE)
         print("Step 3.1.1: Preparation B")
@@ -719,7 +800,7 @@ fui <- function(
         silent = silent
       )
 
-      if(silent == FALSE) print("Step 3.1.2: Smooth G")
+      if (silent == FALSE) print("Step 3.1.2: Smooth G")
 
       ## smooth GHat
       GHat <- GTilde
@@ -743,19 +824,19 @@ fui <- function(
 
     # 3.2 First step ===========================================================
 
-    if(silent == FALSE) print("Step 3.2: First step")
+    if (silent == FALSE) print("Step 3.2: First step")
 
     # Calculate the intra-location variance of betaTilde: Var(betaTilde(s))
 
     # fast block diagonal generator taken from Matrix package examples
     bdiag_m <- function(lmat) {
       ## Copyright (C) 2016 Martin Maechler, ETH Zurich
-      if(!length(lmat)) return(methods::new("dgCMatrix"))
+      if (!length(lmat)) return(methods::new("dgCMatrix"))
       stopifnot(is.list(lmat), is.matrix(lmat[[1]]),
                 (k <- (d <- dim(lmat[[1]]))[1]) == d[2], # k x k
                 all(vapply(lmat, dim, integer(2)) == k)) # all of them
       N <- length(lmat)
-      if(N * k > .Machine$integer.max)
+      if (N * k > .Machine$integer.max)
         stop("resulting matrix too large; would be  M x M, with M=", N*k)
       M <- as.integer(N * k)
       ## result: an   M x M  matrix
@@ -778,13 +859,13 @@ fui <- function(
       covs <- length(cov_idx) # number of covariances
 
       # organize based on number of covariance terms
-      if(covs == 0){
+      if (covs == 0) {
         # if no covariance terms (just simple diagonal matrix)
         var_nm <- groupings <- groups_t <- g_idx_list <- v_list <- NULL
         v_list_template <- diag(1:length(cov_vec))
         v_list_template <- apply(v_list_template, 1, function(x) ifelse(x == 0, max(v_list_template) + 1, x) ) # replace 0s with corresponding index
 
-      }else{
+      } else {
         # mix of covariance terms and non-covariance terms
         # variance terms
         var_nm <- nm[sapply(nm, function(x) unlist(strsplit(x, split='.', fixed=TRUE))[1] == "var"  )]
@@ -795,20 +876,20 @@ fui <- function(
         v_list <- vector(length = length(groupings), "list")
 
         # iterate through groupings and make sub-matrices
-        for(trm in groupings){
+        for(trm in groupings) {
           cnt <- cnt + 1
           # find current grouping (e.g., "id" or "id:session")
           g_idx <- g_idx_list[[cnt]] <- names(which( groups_t == trm  )) # current grouping
           # if this is not just a variance term (i.e., cov terms too)
-          if(length(g_idx) > 1){
+          if (length(g_idx) > 1) {
             m <- diag(cov_vec[g_idx]) # make diagonal matrix with variance terms
             v_list[[cnt]] <- matrix(NA, ncol = ncol(m), nrow = ncol(m))
 
             # name after individual random effect variables (covariates)
             trm_var_name <- sapply(g_idx, function(x) unlist(strsplit(x, split='.', fixed=TRUE))[3] )
             nm1 <- paste0("cov.", trm, ".")
-            for(ll in 1:ncol(m)){
-              for(jj in seq(1,ncol(m) )[-ll] ){
+            for(ll in 1:ncol(m)) {
+              for(jj in seq(1,ncol(m) )[-ll] ) {
                 # names that are covariance between relevant variables
                 v1 <- which(nm == paste0(nm1, trm_var_name[ll], ".", trm_var_name[jj]) )
                 v2 <- which(nm == paste0(nm1, trm_var_name[jj], ".", trm_var_name[ll]) )
@@ -833,19 +914,19 @@ fui <- function(
     }
 
     ### Create a function that trims eigenvalues and return PSD matrix, V is a n x n matrix
-    eigenval_trim <- function(V){
+    eigenval_trim <- function(V) {
       edcomp <- eigen(V, symmetric = TRUE) ## trim non-positive eigenvalues to ensure positive semidefinite
       eigen.positive <- which(edcomp$values > 0)
       q=ncol(V)
 
-      if(length(eigen.positive) == q){
+      if (length(eigen.positive) == q) {
         # nothing needed here because matrix is already PSD
         return(V)
-      }else if(length(eigen.positive) == 0){
+      }else if (length(eigen.positive) == 0) {
         return(tcrossprod(edcomp$vectors[,1]) * edcomp$values[1])
-      }else if(length(eigen.positive) == 1){
+      }else if (length(eigen.positive) == 1) {
         return(tcrossprod(as.vector(edcomp$vectors[,1])) * as.numeric(edcomp$values[1]))
-      }else{
+      } else {
         # sum of outerproducts of eigenvectors scaled by eigenvalues for all positive eigenvalues
         return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(Diagonal(x=edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
       }
@@ -854,12 +935,12 @@ fui <- function(
     ## Obtain the corresponding rows of each subject
     obs.ind <- list()
     ID.number <- unique(data[,group])
-    for(id in ID.number){
+    for(id in ID.number) {
       obs.ind[[as.character(id)]] <- which(data[,group] == id)
     }
     ## Concatenate vector of 1s to Z because used that way below
     HHat_trim <- NA
-    if(!randint_flag){
+    if (!randint_flag) {
       Z <- data_cov$Z_orig
       qq <- ncol(Z)
       HHat_trim <- array(NA, c(qq, qq, L)) # array for Hhat
@@ -873,22 +954,22 @@ fui <- function(
     res_template <- resStart$v_list_template # index template
     template_cols <- ncol(res_template)
     ## Calculate Var(betaTilde) for each location
-    for(s in 1:L){
+    for(s in 1:L) {
       V.subj.inv <- c()
       ## we first do inverse of each block matrix then combine them
-      if(!randint_flag){
+      if (!randint_flag) {
         cov.trimmed <- eigenval_trim( matrix(c(HHat[,s], 0)[res_template], template_cols) )
         HHat_trim[,,s] <- cov.trimmed
       }
 
       XTVinvX <- matrix(0, nrow = p, ncol = p) # store XT * Vinv * X
       XTVinvZ_i <- vector(length = length(ID.number), "list") # store XT * Vinv * Z
-      for(id in ID.number){ ## iterate for each subject
+      for(id in ID.number) { ## iterate for each subject
         subj.ind <- obs.ind[[as.character(id)]]
-        if(randint_flag){
+        if (randint_flag) {
           Ji <- length(subj.ind)
           V.subj <- matrix(HHat[1,s], nrow = Ji, ncol = Ji) + diag(RHat[s], Ji)
-        }else{
+        } else {
           V.subj <- Z[subj.ind,,drop = FALSE] %*% tcrossprod( cov.trimmed, Z[subj.ind,,drop = FALSE] ) +
             diag(RHat[s], length(subj.ind))
         }
@@ -897,10 +978,10 @@ fui <- function(
 
         XTVinvX <- XTVinvX + crossprod(matrix(designmat[subj.ind,], ncol = p),
                                        V.subj.inv) %*% matrix(designmat[subj.ind,], ncol = p)
-        if(randint_flag){
+        if (randint_flag) {
           XTVinvZ_i[[as.character(id)]] <- crossprod(matrix(designmat[subj.ind,], ncol = p),
                                                      V.subj.inv) %*% matrix(1, nrow = Ji, ncol = 1)
-        }else{
+        } else {
           XTVinvZ_i[[as.character(id)]] <- crossprod(matrix(designmat[subj.ind,], ncol = p),
                                                      V.subj.inv) %*% Z[subj.ind,,drop = FALSE]
         }
@@ -915,26 +996,26 @@ fui <- function(
     # Calculate the inter-location covariance of betaTilde: Cov(betaTilde(s_1), betaTilde(s_2))
     ## Create cov.beta.tilde.theo to store covariance of betaTilde
     cov.beta.tilde.theo <- array(NA, dim = c(p,p,L,L))
-    if(randint_flag){
+    if (randint_flag) {
       resStart <- cov_organize_start(GHat[1,2]) # arbitrarily start
-    }else{
+    } else {
       resStart <- cov_organize_start(GHat[,1,2]) # arbitrarily start
     }
 
     res_template <- resStart$v_list_template # index template
     template_cols <- ncol(res_template)
     ## Calculate Cov(betaTilde) for each pair of location
-    for(i in 1:L){
-      for(j in i:L){
+    for(i in 1:L) {
+      for(j in i:L) {
         V.cov.subj <- list()
         tmp <- matrix(0, nrow = p, ncol = p) ## store intermediate part
-        if(randint_flag){
+        if (randint_flag) {
           G_use <- GHat[i,j]
-        }else{
+        } else {
           G_use <- eigenval_trim( matrix(c(GHat[,i,j], 0)[res_template], template_cols) )
         }
 
-        for(id in ID.number){
+        for(id in ID.number) {
           tmp <- tmp + XTVinvZ_all[[i]][[as.character(id)]] %*% tcrossprod(G_use, XTVinvZ_all[[j]][[as.character(id)]])
         }
 
@@ -949,16 +1030,16 @@ fui <- function(
     ##########################################################################
     ## Step 3.3
     ##########################################################################
-    if(silent == FALSE) print("Step 3.3: Second step")
+    if (silent == FALSE) print("Step 3.3: Second step")
 
     # Do an intermediate step for covariance estimate
     var.beta.tilde.s <- array(NA, dim = c(L,L,p))
-    for(j in 1:p){
-      for(r in 1:L){
-        for(t in 1:L){
-          if(t == r){
+    for(j in 1:p) {
+      for(r in 1:L) {
+        for(t in 1:L) {
+          if (t == r) {
             var.beta.tilde.s[r,t,j] <- var.beta.tilde.theo[j,j,r]
-          }else{
+          } else {
             var.beta.tilde.s[r,t,j] <- cov.beta.tilde.theo[j,j,min(r,t),max(r,t)]
           }
         }
@@ -967,7 +1048,7 @@ fui <- function(
 
     # Calculate the inter-location covariance of betaHat: Cov(betaHat(s_1), betaHat(s_2))
     var.beta.hat <- array(NA, dim = c(L,L,p))
-    for(r in 1:p){
+    for(r in 1:p) {
       M <- B %*% tcrossprod(solve(crossprod(B) + lambda[r]*S), B) + matrix(1/L, nrow = L, ncol = L)
       var.raw <- M %*% tcrossprod(var.beta.tilde.s[,,r], M)
       var.beta.hat[,,r] <- eigenval_trim(var.raw) ## trim eigenvalues to make final variance matrix PSD
@@ -980,7 +1061,7 @@ fui <- function(
     zero_vec <- rep(0, length(betaHat[1,]))
     set.seed(seed)
 
-    for(i in 1:length(qn)){
+    for(i in 1:length(qn)) {
       Sigma <- betaHat.var[,,i]
       sqrt_Sigma <- sqrt(diag(Sigma))
       S_scl <- Matrix::Diagonal(x = 1/sqrt_Sigma)
@@ -991,8 +1072,8 @@ fui <- function(
     }
 
     # Decide whether to return design matrix or just set it to NULL
-    if(!design_mat) designmat <- NA
-    if(!silent)  message("Complete! \n -Use plot_fui() function to plot estimates. \n -For more information, run the command:  ?plot_fui")
+    if (!design_mat) designmat <- NA
+    if (!silent)  message("Complete! \n -Use plot_fui() function to plot estimates. \n -For more information, run the command:  ?plot_fui")
 
     return(list(betaHat = betaHat, betaHat.var = betaHat.var, qn = qn, aic = AIC_mat,
                 betaTilde = betaTilde, var_random = var_random, designmat = designmat, residuals = resids,
@@ -1005,16 +1086,16 @@ fui <- function(
     ##########################################################################
     ## Bootstrap Inference
     ##########################################################################
-    if(silent == FALSE) print("Step 3: Inference (Bootstrap)")
+    if (silent == FALSE) print("Step 3: Inference (Bootstrap)")
 
     # Check to see if group contains ":" which indicates hierarchical structure and group needs to be specified
     group <- massmm[[1]]$group
-    if(grepl(":", group, fixed = TRUE)){
-      if(is.null(subj_ID)){
+    if (grepl(":", group, fixed = TRUE)) {
+      if (is.null(subj_ID)) {
         group <- str_remove(group, ".*:") # assumes the ID name is to the right of the ":"
-      }else if(!is.null(subj_ID)){
+      }else if (!is.null(subj_ID)) {
         group <- subj_ID # use user specified if it exists
-      }else{
+      } else {
         message("You must specify the argument: ID")
       }
     }
@@ -1023,28 +1104,28 @@ fui <- function(
     B <- num_boots
     betaHat_boot <- array(NA, dim = c(nrow(betaHat), ncol(betaHat), B))
 
-    if(is.null(boot_type)){
+    if (is.null(boot_type)) {
       # default bootstrap type if not specified
-      if(family == "gaussian"){
+      if (family == "gaussian") {
         boot_type <- ifelse(length(ID.number) <= 10, "reb", "wild")
-      }else{
+      } else {
         boot_type <- "cluster"
       }
     }
 
-    if(family != "gaussian" & boot_type %in% c("wild", "reb")){
+    if (family != "gaussian" & boot_type %in% c("wild", "reb")) {
       stop('Non-gaussian outcomes only supported for some bootstrap procedures. \n Set argument `boot_type` to one of the following: "parametric", "semiparametric", "cluster", "case", "residual"')
     }
     message(paste("Bootstrapping Procedure:", as.character(boot_type)))
     # original way
-    if(boot_type == "cluster"){
+    if (boot_type == "cluster") {
     # Do bootstrap
       pb <- progress_bar$new(total = B)
-      for(boots in 1:B){
+      for(boots in 1:B) {
         pb$tick()
         sample.ind <- idx_perm[boots,] # take one of the randomly sampled (and unique) combinations
         dat.ind <- new_ids <- vector(length = length(sample.ind), "list")
-        for(ii in 1:length(sample.ind)){
+        for(ii in 1:length(sample.ind)) {
           dat.ind[[ii]] <- which(data[,group] == ID.number[sample.ind[ii]])
           new_ids[[ii]] <- rep(ii, length(dat.ind[[ii]]))  # subj_b is now the pseudo_id
         }
@@ -1072,39 +1153,39 @@ fui <- function(
         betaHat_boot[,,boots] <- fit_boot$betaHat
       }
       rm(fit_boot, df2, dat.ind, new_ids)
-    }else{
+    } else {
 
       # lmeresampler() way
       B <- num_boots # use original amount do not constrain by number of unique resampled types here because we cannot construct rows to resample
       betaHat_boot <- betaTilde_boot <- array(NA, dim = c(nrow(betaHat), ncol(betaHat), B))
-      if(!silent)   print("Step 3.1: Bootstrap resampling-") # , as.character(boot_type)
+      if (!silent)   print("Step 3.1: Bootstrap resampling-") # , as.character(boot_type)
       pb <- progress_bar$new(total = L)
-      for(l in 1:L){
+      for(l in 1:L) {
         pb$tick()
         data$Yl <- unclass(data[,out_index][,argvals[l]])
         fit_uni <- suppressMessages(lmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
                                          data = data,
                                          control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
 
-        # if(l == 1){
+        # if (l == 1) {
         #   fit_uni <- suppressMessages(lmer(formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
         #                                  data = data,
         #                                  control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))))
         #   fit_orig <- fit_uni # use this in refit() so we aren't constantly updating a refit model
-        # }else{
+        # } else {
         #   fit_uni <- suppressMessages( lme4::refit(fit_orig, newresp = unclass(data[,out_index][,l]),
         #                                            control = lmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))) )
         # }
 
         set.seed(seed) # set seed to make sure bootstrap replicate (draws) are correlated across functional domains
 
-        if(boot_type == "residual"){
+        if (boot_type == "residual") {
           boot_sample <- lmeresampler::bootstrap(model = fit_uni,
                                                  B = B,
                                                  type = boot_type,
                                                  rbootnoise = 0.0001)$replicates # for residual bootstrap to avoid singularity problems
           betaTilde_boot[,l,] <- t(as.matrix(boot_sample[,1:nrow(betaHat)]))
-        }else if(boot_type %in% c("wild", "reb", "case") ){
+        }else if (boot_type %in% c("wild", "reb", "case") ) {
           # for case
           flist <- lme4::getME(fit_uni, "flist")
           re_names <- names(flist)
@@ -1118,9 +1199,9 @@ fui <- function(
                                                  aux.dist = "mammen", # wild bootstrap
                                                  reb_type = 0)$replicates # for reb bootstrap only
           betaTilde_boot[,l,] <- t(as.matrix(boot_sample[,1:nrow(betaHat)]))
-        }else{
+        } else {
           use.u <- ifelse(boot_type == "semiparametric", TRUE, FALSE)
-          betaTilde_boot[,l,] <- t( lme4::bootMer(x = fit_uni, FUN = function(.){fixef(.)},
+          betaTilde_boot[,l,] <- t( lme4::bootMer(x = fit_uni, FUN = function(.) {fixef(.)},
                                                   nsim = B, seed = seed, type = boot_type,
                                                   use.u = use.u)$t )
         }
@@ -1128,8 +1209,8 @@ fui <- function(
 
       suppressWarnings(rm(boot_sample, fit_uni))
       # smooth across functional domain
-      if(!silent)   print("Step 3.2: Smooth Bootstrap estimates")
-      for(b in 1:B){
+      if (!silent)   print("Step 3.2: Smooth Bootstrap estimates")
+      for(b in 1:B) {
         betaHat_boot[,,b] <- t(apply(betaTilde_boot[,,b], 1, function(x) gam(x ~ s(argvals, bs = splines, k = (nknots + 1)), method = smooth_method)$fitted.values))
       }
 
@@ -1138,16 +1219,16 @@ fui <- function(
 
     # Obtain bootstrap variance
     betaHat.var <- array(NA, dim = c(L,L,nrow(betaHat)))
-    for(r in 1:nrow(betaHat)){
+    for(r in 1:nrow(betaHat)) {
       betaHat.var[,,r] <- 1.2*var(t(betaHat_boot[r,,])) ## account for within-subject correlation
     }
 
     # Obtain qn to construct joint CI using the fast approach
-    if(!silent)   print("Step 3.3")
+    if (!silent)   print("Step 3.3")
     qn <- rep(0, length = nrow(betaHat))
     N <- 10000 ## sample size in simulation-based approach
     set.seed(seed) # set seed to make sure bootstrap replicate (draws) are correlated across functional domains
-    for(i in 1:length(qn)){
+    for(i in 1:length(qn)) {
       est_bs <- t(betaHat_boot[i,,])
       fit_fpca <- suppressWarnings( refund::fpca.face(est_bs, knots = nknots_fpca) ) # suppress sqrt(Eigen$values) NaNs
       ## extract estimated eigenfunctions/eigenvalues
@@ -1157,10 +1238,10 @@ fui <- function(
 
       ## simulate random coefficients
       theta <- matrix(stats::rnorm(N*K), nrow=N, ncol=K) # generate independent standard normals
-      if(K == 1){
+      if (K == 1) {
         theta <- theta * sqrt(lambda) # scale to have appropriate variance
         X_new <- tcrossprod(theta, phi) # simulate new functions
-      }else{
+      } else {
         theta <- theta %*% diag(sqrt(lambda)) # scale to have appropriate variance
         X_new <- tcrossprod(theta, phi) # simulate new functions
       }
@@ -1168,13 +1249,13 @@ fui <- function(
       Sigma_sd <- Rfast::colVars(x_sample, std = TRUE, na.rm = FALSE) # standard deviation: apply(x_sample, 2, sd)
       x_mean <- colMeans(est_bs)
       un <- rep(NA, N)
-      for(j in 1:N){
+      for(j in 1:N) {
         un[j] <- max(abs((x_sample[j,] - x_mean)/Sigma_sd))
       }
       qn[i] <- stats::quantile(un, 0.95)
     }
 
-    if(!silent)
+    if (!silent)
       message("Complete! \n -Use plot_fui() function to plot estimates \n -For more information, run the command:  ?plot_fui")
 
     return(

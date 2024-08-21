@@ -80,7 +80,6 @@
 #' Univariate Inference for Longitudinal Functional Models. \emph{Journal of
 #' Computational and Graphical Statistics}, 31(1), 219-230.
 #'
-#' @export
 #'
 #' @import lme4
 #' @import parallel
