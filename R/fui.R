@@ -557,7 +557,7 @@ fui <- function(
 
       ###################   precalculation for fbps smoothing  ##############
 
-      List = pspline_setting(x,xknots,p1,m1,periodicity[1])
+      List = pspline_setting(x, xknots, p1, m1, periodicity[1])
       A1 = List$A
       B1 = List$B
       Bt1 = Matrix(t(as.matrix(B1)))
@@ -574,8 +574,12 @@ fui <- function(
       s2 = List$s
       Sigi2_sqrt = List$Sigi.sqrt
       U2 = List$U
+      print(Sigi2_sqrt)
+      print(U2)
       A02 = Sigi2_sqrt%*%U2
       c2 = length(s2)
+      print(s2)
+
       #################select optimal penalty ################################
 
       # Trace of square matrix
