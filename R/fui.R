@@ -566,8 +566,14 @@ fui <- function(
       U1 = List$U
       A01 = Sigi1_sqrt%*%U1
       c1 = length(s1)
+      message('List1')
+      print(List)
+      message(List)
 
-      List = pspline_setting(z,zknots,p2,m2,periodicity[2])
+      List = pspline_setting(z, zknots, p2, m2, periodicity[2])
+      message('List2')
+      print(List)
+      message(List)
       A2 = List$A
       B2 = List$B
       Bt2 = Matrix(t(as.matrix(B2)))
