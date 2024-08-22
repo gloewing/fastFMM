@@ -6,6 +6,7 @@
 #' Because `G_estimate`
 #'
 #' @param data Data frame that contains the predictors and outcome
+#' @param MoM Integer to determine type of MoM estimation.
 #' @param Z_lst Transposed list of Z matrices from the univariate fits
 #' @param RE_table Table of random effects and interactions, generated from the
 #' `lmerMod` object
@@ -18,7 +19,7 @@
 #'
 #' @export
 
-G_generate <- function(data, Z_lst, RE_table, ID ="id"){
+G_generate <- function(data, Z_lst, RE_table, MoM, ID ="id"){
   # data fed to fui function
   # Z_lst is the ZTlist (transposed) output from:
   #   sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )

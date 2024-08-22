@@ -780,6 +780,7 @@ fui <- function(
         data = data,
         Z_lst = ztlist,
         RE_table = RE_table,
+        MoM = MoM,
         ID = subj_ID
       )
 
