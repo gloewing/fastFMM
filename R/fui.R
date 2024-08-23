@@ -576,7 +576,6 @@ fui <- function(
       U2 = List$U
       A02 = Sigi2_sqrt%*%U2
       c2 = length(s2)
-      print(s2)
 
       #################select optimal penalty ################################
 
