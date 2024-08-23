@@ -568,19 +568,12 @@ fui <- function(
       c1 = length(s1)
 
       List = pspline_setting(z, zknots, p2, m2, periodicity[2])
-      message('List2')
-      print(names(List2))
-
       A2 = List$A
       B2 = List$B
       Bt2 = Matrix(t(as.matrix(B2)))
       s2 = List$s
       Sigi2_sqrt = List$Sigi_sqrt
       U2 = List$U
-
-      ifelse(is.null(Sigi2_sqrt), print('Sigi2_sqrt is null'), print(Sigi2_sqrt))
-      ifelse(is.null(U2), print('U2 is null'), print(Sigi2_sqrt))
-
       A02 = Sigi2_sqrt%*%U2
       c2 = length(s2)
       print(s2)
