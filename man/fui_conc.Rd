@@ -19,7 +19,6 @@ fui_conc(
   splines = "tp",
   design_mat = FALSE,
   residuals = FALSE,
-  G_return = FALSE,
   num_boots = 500,
   boot_type = NULL,
   seed = 1,
@@ -73,9 +72,6 @@ Defaults to \code{FALSE}}
 
 \item{residuals}{Logical, indicating whether to save residuals from
 unsmoothed LME. Defaults to \code{FALSE}.}
-
-\item{G_return}{Logical, indicating whether to return (smoothed and trimmed)
-G = Cov(u(s_t), u(s_l)). Defaults to \code{FALSE}.}
 
 \item{num_boots}{Number of samples when using bootstrap inference. Defaults to 500.}
 

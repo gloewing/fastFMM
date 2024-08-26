@@ -19,7 +19,6 @@ fui(
   splines = "tp",
   design_mat = FALSE,
   residuals = FALSE,
-  G_return = FALSE,
   num_boots = 500,
   boot_type = NULL,
   seed = 1,
@@ -46,7 +45,6 @@ fui(
   splines = "tp",
   design_mat = FALSE,
   residuals = FALSE,
-  G_return = FALSE,
   num_boots = 500,
   boot_type = NULL,
   seed = 1,
@@ -101,9 +99,6 @@ Defaults to \code{FALSE}}
 \item{residuals}{Logical, indicating whether to save residuals from
 unsmoothed LME. Defaults to \code{FALSE}.}
 
-\item{G_return}{Logical, indicating whether to return (smoothed and trimmed)
-G = Cov(u(s_t), u(s_l)). Defaults to \code{FALSE}.}
-
 \item{num_boots}{Number of samples when using bootstrap inference. Defaults to 500.}
 
 \item{boot_type}{Bootstrap type (character): "cluster", "case", "wild", "reb",
@@ -129,6 +124,9 @@ average of coefficents for 1 variance term. Defaults to 0.}
 
 \item{MoM}{Method of moments estimator. Default to 2. 1 should only be used
 for extremely large datasets.}
+
+\item{G_return}{Logical, indicating whether to return (smoothed and trimmed)
+G = Cov(u(s_t), u(s_l)). Defaults to \code{FALSE}.}
 }
 \value{
 A list containing:
