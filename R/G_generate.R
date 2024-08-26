@@ -3,8 +3,6 @@
 #' The function `G_estimate` uses a MoM method,
 #' and `G_estimate_randint` is a special case of `G_estimate`.
 #'
-#' Because `G_estimate`
-#'
 #' @param data Data frame that contains the predictors and outcome
 #' @param MoM Integer to determine type of MoM estimation.
 #' @param Z_lst Transposed list of Z matrices from the univariate fits
