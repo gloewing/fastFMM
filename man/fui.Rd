@@ -192,8 +192,10 @@ library(refund)
 ## random intercept only
 set.seed(1)
 DTI_use <- DTI[DTI$ID \%in\% sample(DTI$ID, 10),]
-fit_dti <- fui(cca ~ case + visit + sex + (1 | ID),
-                 data = DTI_use)
+fit_dti <- fui(
+  cca ~ case + visit + sex + (1 | ID),
+  data = DTI_use
+)
 }
 \references{
 Cui, E., Leroux, A., Smirnova, E., Crainiceanu, C. (2022). Fast

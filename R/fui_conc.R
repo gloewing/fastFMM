@@ -46,8 +46,6 @@
 #' Defaults to \code{FALSE}
 #' @param residuals Logical, indicating whether to save residuals from
 #' unsmoothed LME. Defaults to \code{FALSE}.
-#' @param G_return Logical, indicating whether to return (smoothed and trimmed)
-#' G = Cov(u(s_t), u(s_l)). Defaults to \code{FALSE}.
 #' @param num_boots Number of samples when using bootstrap inference. Defaults to 500.
 #' @param boot_type Bootstrap type (character): "cluster", "case", "wild", "reb",
 #' "residual", "parametric", "semiparametric". \code{NULL} defaults to "cluster"
@@ -120,7 +118,6 @@ fui_conc <- function(
   splines = "tp",
   design_mat = FALSE,
   residuals = FALSE,
-  G_return = FALSE,
   num_boots = 500,
   boot_type = NULL,
   seed = 1,

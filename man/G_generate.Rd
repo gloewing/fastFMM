@@ -4,7 +4,7 @@
 \alias{G_generate}
 \title{Creates the design matrix that allows for estimation of G}
 \usage{
-G_generate(data, Z_lst, RE_table, ID = "id")
+G_generate(data, Z_lst, RE_table, MoM, ID = "id")
 }
 \arguments{
 \item{data}{Data frame that contains the predictors and outcome}
@@ -13,6 +13,8 @@ G_generate(data, Z_lst, RE_table, ID = "id")
 
 \item{RE_table}{Table of random effects and interactions, generated from the
 `lmerMod` object}
+
+\item{MoM}{Integer to determine type of MoM estimation.}
 
 \item{ID}{Name of the ID factor, assuming names of `HHat` are generated from
 the same table in the same order}
