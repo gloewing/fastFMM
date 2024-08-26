@@ -1,11 +1,12 @@
 Package: fastFMM
 Type: Package
 Title: Fast Functional Mixed Models using Fast Univariate Inference
-Version: 0.2.0
-Date: 2024-02-02
+Version: 0.3.0
+Date: 2024-08-26
 Authors@R: c(
     person("Erjia", "Cui", role = c("aut", "cre"), email = "ecui@umn.edu"),
-    person("Gabriel", "Loewinger", role = "aut", email = "gloewinger@gmail.com"))
+    person("Gabriel", "Loewinger", role = "aut", email = "gloewinger@gmail.com"),
+    person("Al", "Xin", role = "ctb", email = "alisonwxin@gmail.com"))
 Description: Implementation of the fast univariate inference approach (Cui et al. (2022) <doi:10.1080/10618600.2021.1950006>, Loewinger et al. (2023) <doi:10.1101/2023.11.06.565896>) for fitting functional mixed models.
 License: GPL (>= 3)
 Encoding: UTF-8
