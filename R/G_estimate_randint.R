@@ -13,8 +13,6 @@
 #' @return An estimation of the G matrix
 #'
 #' @importFrom Matrix crossprod
-#'
-#' @export
 
 # TODO: check function dependencies
 

@@ -3,7 +3,7 @@
 #' The function `G_estimate` uses a MoM method,
 #' and `G_estimate_randint` is a special case of `G_estimate`.
 #'
-#' Because `G_estimate`
+#' Helper function for variance estimation in `fui`.
 #'
 #' @param data Data frame that contains the predictors and outcome
 #' @param MoM Integer to determine type of MoM estimation.
@@ -16,8 +16,6 @@
 #' @return List containing Z matrices and indices (unsure)
 #'
 #' @import lme4
-#'
-#' @export
 
 G_generate <- function(data, Z_lst, RE_table, MoM, ID ="id"){
   # data fed to fui function

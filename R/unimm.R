@@ -19,8 +19,7 @@
 #' @import lme4
 #'
 #' @return a list containing point estimates, variance estimates, etc.
-#'
-#' @export
+
 
 unimm <- function(
     l,

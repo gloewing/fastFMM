@@ -27,7 +27,7 @@ fui(
   caic = FALSE,
   REs = FALSE,
   non_neg = 0,
-  MoM = 2
+  MoM = 1
 )
 
 fui(
@@ -53,7 +53,7 @@ fui(
   caic = FALSE,
   REs = FALSE,
   non_neg = 0,
-  MoM = 2
+  MoM = 1
 )
 }
 \arguments{

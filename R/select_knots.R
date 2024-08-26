@@ -9,10 +9,6 @@
 #' @param p Numeric, the degrees of B-splines. Default = 3.
 #' @param option Character, knot spacing, can be `"equally-spaced"` or
 #' `"quantile"`
-#'
-#' @export
-
-# TODO: figure out what `t` is and whether p is num or int
 
 select_knots <- function(
   t,
@@ -31,7 +27,7 @@ select_knots <- function(
   }
 
   K <- length(knots)
-  knots_left <- 2*knots[1] - knots[p:1+1] # AX: Why isn't this p:2
+  knots_left <- 2*knots[1] - knots[p:1+1]
   knots_right <- 2*knots[K] - knots[K - (1:p)]
 
   return(c(knots_left, knots, knots_right))

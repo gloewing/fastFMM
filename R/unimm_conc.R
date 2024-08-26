@@ -23,8 +23,6 @@
 #'
 #' @return a list containing point estimates, variance estimates, etc.
 
-# TODO: generalize to multiple functional cov
-
 unimm_conc <- function(
   l,
   data,

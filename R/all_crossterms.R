@@ -10,8 +10,6 @@
 #' @return Matrix of cross-terms between `Z_i` and `Z_j`.
 #'
 #' @import Matrix
-#'
-#' @export
 
 all_crossterms <- function(Z_i, Z_j, make_sparse = TRUE) {
 

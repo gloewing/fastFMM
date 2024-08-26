@@ -27,5 +27,5 @@ The function `G_estimate` uses a MoM method,
 and `G_estimate_randint` is a special case of `G_estimate`.
 }
 \details{
-Because `G_estimate`
+Helper function for variance estimation in `fui`.
 }
