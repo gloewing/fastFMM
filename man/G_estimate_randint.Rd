@@ -4,10 +4,12 @@
 \alias{G_estimate_randint}
 \title{Special case of estimating covariance of random components G(s1, s2)}
 \usage{
-G_estimate_randint(data, out_index, designmat, betaHat, silent = TRUE)
+G_estimate_randint(data, L, out_index, designmat, betaHat, silent = TRUE)
 }
 \arguments{
 \item{data}{A data frame containing all variables in formula}
+
+\item{L}{Number of columns of outcome variables}
 
 \item{out_index}{Indices that contain the outcome variables}
 
