@@ -24,7 +24,7 @@
 #' @param family GLM family of the response. Defaults to \code{gaussian}.
 #' @param var Logical, indicating whether to calculate and return variance
 #' of the coefficient estimates. Defaults to \code{TRUE}.
-#' @param analytic Logical, indicating whether to use the analytic inference
+#' @param analytic Logical, indicating whether to use the analytic inferenc
 #' approach or bootstrap. Defaults to \code{TRUE}.
 #' @param parallel Logical, indicating whether to do parallel computing.
 #' Defaults to \code{FALSE}.
@@ -1066,11 +1066,26 @@ fui <- function(
     if (!design_mat) designmat <- NA
     if (!silent)  message("Complete! \n -Use plot_fui() function to plot estimates. \n -For more information, run the command:  ?plot_fui")
 
-    return(list(betaHat = betaHat, betaHat.var = betaHat.var, qn = qn, aic = AIC_mat,
-                betaTilde = betaTilde, var_random = var_random, designmat = designmat, residuals = resids,
-                H = HHat_trim, R = RHat, G = GTilde, GHat = GHat, Z = ztlist,
-                argvals = argvals,
-                randEff = randEff, se_mat = se_mat))
+    return(
+      list(
+        betaHat = betaHat,
+        betaHat.var = betaHat.var,
+        qn = qn,
+        aic = AIC_mat,
+        betaTilde = betaTilde,
+        var_random = var_random,
+        designmat = designmat,
+        residuals = resids,
+        H = HHat_trim,
+        R = RHat,
+        G = GTilde,
+        GHat = GHat,
+        Z = ztlist,
+        argvals = argvals,
+        randEff = randEff,
+        se_mat = se_mat
+      )
+    )
 
   } else {
 

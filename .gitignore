@@ -5,3 +5,7 @@
 *NOTES.R
 *.Rproj
 rebuild.Rmd
+tests/*.Rmd
+tests/*.csv
+tests/*.html
+*oop.R
