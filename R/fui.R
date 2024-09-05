@@ -61,6 +61,7 @@
 #' average of coefficents for 1 variance term. Defaults to 0.
 #' @param MoM Method of moments estimator. Default to 2. 1 should only be used
 #' for extremely large datasets.
+#' @param impute_outcome Logical, indicating whether to impute missing outcome values with FPCA. Defaults to \code{FALSE}.
 #'
 #' @return A list containing:
 #' \item{betaHat}{Estimated functional fixed effects}
@@ -90,7 +91,7 @@
 #' @importFrom lsei pnnls lsei
 #' @import Matrix
 #' @importFrom mvtnorm rmvnorm
-#' @importFrom Rfast rowMaxs
+#' @importFrom Rfast rowMaxs spdinv
 #' @import progress
 #'
 #' @examples
@@ -134,7 +135,7 @@ fui <- function(
 
   # If doing parallel computing, set up the number of cores
   if (parallel & !is.integer(num_cores))
-    num_cores <- parallel::detectCores() - 1
+    num_cores <- as.integer(round(parallel::detectCores() * 0.75))
 
   # For non-Gaussian family, only do bootstrap inference
   if (family != "gaussian") analytic <- FALSE
@@ -164,15 +165,55 @@ fui <- function(
   }
   rm(dep_str)
 
+  # Obtain the dimension of the functional domain
+  # Find indices that start with the outcome name
+  out_index <- grep(paste0("^", model_formula[2]), names(data))
+  
+  # Fill in missing values of functional outcome using FPCA
+  missing_rows <- which( rowSums(is.na(data[,out_index])) != 0 ) # rows with missing outcome values
+  if ( length(missing_rows) != 0) {
+    if(analytic & impute_outcome){
+    
+      message(
+        paste(
+          "Imputing", length(out_index),
+          "values in functional response with longitudinal functional PCA"
+        )
+      )
+      
+      if (length(out_index) != 1) {
+        tmp <- as.matrix(data[, out_index])
+        tmp[which(is.na(tmp))] <- suppressWarnings(
+          refund::fpca.face(
+            tmp,
+            argvals = argvals,
+            knots = nknots_fpca
+          )$Yhat[which(is.na(tmp))]
+        )
+        data[,out_index] <- tmp
+      } else {
+        data[, out_index][which(is.na(data[, out_index]))] <- suppressWarnings(
+          refund::fpca.face(
+            as.matrix(data[, out_index]),
+            argvals = argvals,
+            knots = nknots_fpca
+          )$Yhat[which(is.na(data[, out_index]))]
+        )
+      }
+    }else if(analytic & !impute_outcome){
+      message(paste("Removing", 
+                    missing_rows, 
+                    "rows with missing functional outcome values.", , "\n",
+                    "To impute missing outcome values with FPCA, set fui() argument: impute_outcome = TRUE "))
+      
+      data[, out_index] <- data[-missing_rows, out_index] # remove data with missing rows
+    }
+  }
 
   # 1. Massively univariate mixed models #######################################
 
   if (silent == FALSE)
     print("Step 1: Fit Massively Univariate Mixed Models")
-
-  # Obtain the dimension of the functional domain
-  # Find indices that start with the outcome name
-  out_index <- grep(paste0("^", model_formula[2]), names(data))
 
   # Read the full list of columns or the matrix column
   # Set L depending on whether out_index is multiple columns or a matrix
@@ -218,21 +259,43 @@ fui <- function(
   # Create a matrix to store AICs
   AIC_mat <- matrix(NA, nrow = L, ncol = 2)
 
-  # Fit massively univariate mixed models in parallel
+  # Fit massively univariate mixed models
   # Calls unimm to fit each individual lmer model
-  massmm <- mclapply(
-    argvals,
-    unimm,
-    data = data,
-    model_formula = model_formula,
-    family = family,
-    residuals = residuals,
-    caic = caic,
-    REs = REs,
-    analytic = analytic,
-    mc.cores = num_cores
-  )
-
+  if (parallel) {
+    # check if os is windows and use parLapply
+    if(.Platform$OS.type == "windows") {
+      message(paste("Windows LMM cores:", num_cores))
+      cl <- makePSOCKcluster(num_cores)
+      massmm <- parLapply(cl = cl, X = argvals, fun = unimm) 
+      stopCluster(cl)
+      
+      # if not Windows use mclapply
+    } else {
+      massmm <- mclapply(
+        argvals,
+        unimm,
+        data = data,
+        model_formula = model_formula,
+        family = family,
+        residuals = residuals,
+        caic = caic,
+        REs = REs,
+        analytic = analytic,
+        mc.cores = num_cores
+      )
+    }
+    
+  } else {
+    massmm <- lapply(argvals, 
+                     unimm,
+                     data = data,
+                     model_formula = model_formula,
+                     family = family,
+                     residuals = residuals,
+                     caic = caic,
+                     REs = REs,
+                     analytic = analytic)
+  }
 
   # Obtain betaTilde, fixed effects estimates
   betaTilde <- t(do.call(rbind, lapply(massmm, '[[', 1)))
@@ -919,7 +982,7 @@ fui <- function(
         return(tcrossprod(as.vector(edcomp$vectors[,1])) * as.numeric(edcomp$values[1]))
       } else {
         # sum of outerproducts of eigenvectors scaled by eigenvalues for all positive eigenvalues
-        return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(Diagonal(x=edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
+        return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(diag(edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
       }
     }
 
@@ -936,40 +999,48 @@ fui <- function(
       qq <- ncol(Z)
       HHat_trim <- array(NA, c(qq, qq, L)) # array for Hhat
     }
+    
     ## Create var.beta.tilde.theo to store variance of betaTilde
-    var.beta.tilde.theo <- array(NA, dim = c(p,p,L))
+    var.beta.tilde.theo <- array(NA, dim = c(p, p, L))
     ## Create XTVinvZ_all to store all XTVinvZ used in the covariance calculation
     XTVinvZ_all <- vector(length = L, "list")
     ## arbitrarily start find indices
     resStart <- cov_organize_start(HHat[,1])
     res_template <- resStart$v_list_template # index template
     template_cols <- ncol(res_template)
+    
     ## Calculate Var(betaTilde) for each location
-    for(s in 1:L) {
+    parallel_fn <- function(s){
+
       V.subj.inv <- c()
       ## we first do inverse of each block matrix then combine them
-      if (!randint_flag) {
-        cov.trimmed <- eigenval_trim( matrix(c(HHat[,s], 0)[res_template], template_cols) )
-        HHat_trim[,,s] <- cov.trimmed
+      if (!randInt_flag) {
+        cov.trimmed <- eigenval_trim(matrix(c(HHat[, s], 0)[res_template], template_cols))
+        HHat_trim[, , s] <- cov.trimmed
       }
-
+      
       XTVinvX <- matrix(0, nrow = p, ncol = p) # store XT * Vinv * X
       XTVinvZ_i <- vector(length = length(ID.number), "list") # store XT * Vinv * Z
-      for(id in ID.number) { ## iterate for each subject
-        subj.ind <- obs.ind[[as.character(id)]]
-        if (randint_flag) {
-          Ji <- length(subj.ind)
-          V.subj <- matrix(HHat[1,s], nrow = Ji, ncol = Ji) + diag(RHat[s], Ji)
+      obs.ind <- obs_ind
+      
+      for (id in ID.number) { ## iterate for each subject
+        subj_ind <- obs_ind[[as.character(id)]]
+        subj.ind <- subj_ind
+        
+        if (randInt_flag) {
+          Ji <- length(subj_ind)
+          V.subj <- matrix(HHat[1, s], nrow = Ji, ncol = Ji) + diag(RHat[s], Ji)
         } else {
-          V.subj <- Z[subj.ind,,drop = FALSE] %*% tcrossprod( cov.trimmed, Z[subj.ind,,drop = FALSE] ) +
-            diag(RHat[s], length(subj.ind))
+          V.subj <- Z[subj_ind, , drop = FALSE] %*% tcrossprod(cov.trimmed, Z[subj_ind, , drop = FALSE]) +
+            diag(RHat[s], length(subj_ind))
         }
-
-        V.subj.inv <- solve(V.subj)
-
+        
+        V.subj.inv <- as.matrix(Rfast::spdinv(V.subj))
+        
         XTVinvX <- XTVinvX + crossprod(matrix(designmat[subj.ind,], ncol = p),
                                        V.subj.inv) %*% matrix(designmat[subj.ind,], ncol = p)
-        if (randint_flag) {
+        
+        if (randInt_flag) {
           XTVinvZ_i[[as.character(id)]] <- crossprod(matrix(designmat[subj.ind,], ncol = p),
                                                      V.subj.inv) %*% matrix(1, nrow = Ji, ncol = 1)
         } else {
@@ -977,46 +1048,55 @@ fui <- function(
                                                      V.subj.inv) %*% Z[subj.ind,,drop = FALSE]
         }
       }
+      
+      var.beta.tilde.theo[,,s] <- as.matrix(Rfast::spdinv(XTVinvX)) 
 
-      var.beta.tilde.theo[,,s] <- solve(XTVinvX) # variance of betaTilde
-      XTVinvZ_all[[s]] <- XTVinvZ_i # store XTVinvZ for each subject at each location
-
+      return(list(XTViv = XTVinvZ_i,
+                  var.beta.tilde.theo = var.beta.tilde.theo[,,s]))
     }
-    suppressWarnings(rm(V.subj.inv, cov.trimmed, XTVinvZ_i, resStart, res_template, template_cols))
-
-    # Calculate the inter-location covariance of betaTilde: Cov(betaTilde(s_1), betaTilde(s_2))
-    ## Create cov.beta.tilde.theo to store covariance of betaTilde
-    cov.beta.tilde.theo <- array(NA, dim = c(p,p,L,L))
-    if (randint_flag) {
-      resStart <- cov_organize_start(GHat[1,2]) # arbitrarily start
-    } else {
-      resStart <- cov_organize_start(GHat[,1,2]) # arbitrarily start
-    }
-
-    res_template <- resStart$v_list_template # index template
-    template_cols <- ncol(res_template)
-    ## Calculate Cov(betaTilde) for each pair of location
-    for(i in 1:L) {
-      for(j in i:L) {
-        V.cov.subj <- list()
-        tmp <- matrix(0, nrow = p, ncol = p) ## store intermediate part
-        if (randint_flag) {
-          G_use <- GHat[i,j]
-        } else {
-          G_use <- eigenval_trim( matrix(c(GHat[,i,j], 0)[res_template], template_cols) )
+    
+    # Fit massively univariate mixed models
+    if (parallel) {
+      # check if os is windows and use parLapply
+      if(.Platform$OS.type == "windows") {
+        eigenval_trim <- function(V) {
+          edcomp <- base::eigen(V, symmetric = TRUE) ## trim non-positive eigenvalues to ensure positive semidefinite
+          eigen.positive <- which(edcomp$values > 0)
+          q=ncol(V)
+          
+          if (length(eigen.positive) == q) {
+            # nothing needed here because matrix is already PSD
+            return(V)
+          }else if (length(eigen.positive) == 0) {
+            return(tcrossprod(edcomp$vectors[,1]) * edcomp$values[1])
+          }else if (length(eigen.positive) == 1) {
+            return(tcrossprod(as.vector(edcomp$vectors[,1])) * as.numeric(edcomp$values[1]))
+          } else {
+            # sum of outerproducts of eigenvectors scaled by eigenvalues for all positive eigenvalues
+            return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(diag(edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), q, q)) # Matrix::Diagonal
+          }
         }
-
-        for(id in ID.number) {
-          tmp <- tmp + XTVinvZ_all[[i]][[as.character(id)]] %*% tcrossprod(G_use, XTVinvZ_all[[j]][[as.character(id)]])
-        }
-
-        ## Calculate covariance using XTVinvX and tmp to save memory
-        cov.beta.tilde.theo[,,i,j] <- var.beta.tilde.theo[,,i] %*% tmp %*% var.beta.tilde.theo[,,j]
-
+        
+        cl <- parallel::makePSOCKcluster(num_cores)
+        massVar <- parallel::parLapply(cl = cl, X = argvals, fun = parallel_fn) 
+        parallel::stopCluster(cl)
+        
+        # if not Windows use mclapply
+      } else {
+        massVar <- parallel::mclapply(X = argvals, FUN = parallel_fn, mc.cores = num_cores)
       }
+    } else {
+      massVar <- lapply(argvals, parallel_fn, 
+                        randInt_flag = randInt_flag)
     }
-    suppressWarnings(rm(V.subj, V.cov.subj, Z, XTVinvZ_all, resStart, res_template, template_cols))
-
+    
+    XTVinvZ_all <- lapply(argvals, function(s) 
+      massVar[[s]]$XTViv[lengths(massVar[[s]]$XTViv) != 0])
+    var.beta.tilde.theo <- lapply(argvals, function(s) 
+      massVar[[s]]$var.beta.tilde.theo)
+    var.beta.tilde.theo <- simplify2array(var.beta.tilde.theo)
+    
+    suppressWarnings(rm(massVar, resStart, res_template, template_cols))
 
     ##########################################################################
     ## Step 3.3
