@@ -461,8 +461,7 @@ fui <- function(
     # Derive variance estimates of random components: H(s), R(s)
     HHat <- t(
       apply(
-        sigmausqHat,
-        1,
+        sigmausqHat, 1,
         function(b) stats::smooth.spline(x = argvals, y = b)$y
       )
     )
@@ -477,10 +476,6 @@ fui <- function(
     )
     RHat[which(RHat < 0)] <- 0
 
-    # TODO: Place this in its own function
-    # Also needs to call `select_knots` and `pspline_setting` w/in the pkg
-
-    message("Testing pspline_setting and select_knots")
     # altered fbps() function from refund to increase GCV speed (b/c lambda1=lambda2 for cov matrices b/c they're symmetric)
     fbps_cov <- function(data, subj=NULL,covariates = NULL, knots=35, knots.option="equally-spaced",
                      periodicity = c(FALSE,FALSE), p=3,m=2,lambda=NULL,
@@ -738,22 +733,19 @@ fui <- function(
     # with potential NNLS correction for diagonals (for variance terms)
     if (randint_flag) {
 
-      message("Testing integration of G_estimate_randint")
-
       GTilde <- G_estimate_randint(
         data = data,
+        L = L,
         out_index = out_index,
         designmat = designmat,
         betaHat = betaHat,
         silent = silent
       )
 
-      message("G_estimate_randint successsful.")
-
       if (silent == FALSE)
         print("Step 3.1.2: Smooth G")
 
-      diag(GTilde) <- HHat[1,] # L x L matrix
+      diag(GTilde) <- HHat[1, ] # L x L matrix
       # Fast bivariate smoother
       # nknots_min
       GHat <- fbps_cov(
