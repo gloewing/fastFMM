@@ -59,8 +59,7 @@
 #' @param non_neg 0 - no non-negativity constrains, 1 - non-negativity
 #' constraints on every coefficient for variance, 2 - non-negativity on
 #' average of coefficents for 1 variance term. Defaults to 0.
-#' @param MoM Method of moments estimator. Default to 2. 1 should only be used
-#' for extremely large datasets.
+#' @param MoM Method of moments estimator. Defaults to 1.
 #' @param impute_outcome Logical, indicating whether to impute missing outcome values with FPCA. Defaults to \code{FALSE}.
 #'
 #' @return A list containing:
@@ -168,19 +167,19 @@ fui <- function(
   # Obtain the dimension of the functional domain
   # Find indices that start with the outcome name
   out_index <- grep(paste0("^", model_formula[2]), names(data))
-  
+
   # Fill in missing values of functional outcome using FPCA
   missing_rows <- which( rowSums(is.na(data[,out_index])) != 0 ) # rows with missing outcome values
   if ( length(missing_rows) != 0) {
     if(analytic & impute_outcome){
-    
+
       message(
         paste(
           "Imputing", length(out_index),
           "values in functional response with longitudinal functional PCA"
         )
       )
-      
+
       if (length(out_index) != 1) {
         tmp <- as.matrix(data[, out_index])
         tmp[which(is.na(tmp))] <- suppressWarnings(
@@ -201,11 +200,11 @@ fui <- function(
         )
       }
     }else if(analytic & !impute_outcome){
-      message(paste("Removing", 
-                    missing_rows, 
+      message(paste("Removing",
+                    missing_rows,
                     "rows with missing functional outcome values.", , "\n",
                     "To impute missing outcome values with FPCA, set fui() argument: impute_outcome = TRUE "))
-      
+
       data[, out_index] <- data[-missing_rows, out_index] # remove data with missing rows
     }
   }
@@ -266,9 +265,9 @@ fui <- function(
     if(.Platform$OS.type == "windows") {
       message(paste("Windows LMM cores:", num_cores))
       cl <- makePSOCKcluster(num_cores)
-      massmm <- parLapply(cl = cl, X = argvals, fun = unimm) 
+      massmm <- parLapply(cl = cl, X = argvals, fun = unimm)
       stopCluster(cl)
-      
+
       # if not Windows use mclapply
     } else {
       massmm <- mclapply(
@@ -284,9 +283,9 @@ fui <- function(
         mc.cores = num_cores
       )
     }
-    
+
   } else {
-    massmm <- lapply(argvals, 
+    massmm <- lapply(argvals,
                      unimm,
                      data = data,
                      model_formula = model_formula,
@@ -999,7 +998,7 @@ fui <- function(
       qq <- ncol(Z)
       HHat_trim <- array(NA, c(qq, qq, L)) # array for Hhat
     }
-    
+
     ## Create var.beta.tilde.theo to store variance of betaTilde
     var.beta.tilde.theo <- array(NA, dim = c(p, p, L))
     ## Create XTVinvZ_all to store all XTVinvZ used in the covariance calculation
@@ -1008,39 +1007,39 @@ fui <- function(
     resStart <- cov_organize_start(HHat[,1])
     res_template <- resStart$v_list_template # index template
     template_cols <- ncol(res_template)
-    
+
     ## Calculate Var(betaTilde) for each location
     parallel_fn <- function(s){
 
       V.subj.inv <- c()
       ## we first do inverse of each block matrix then combine them
-      if (!randInt_flag) {
+      if (!randint_flag) {
         cov.trimmed <- eigenval_trim(matrix(c(HHat[, s], 0)[res_template], template_cols))
         HHat_trim[, , s] <- cov.trimmed
       }
-      
+
       XTVinvX <- matrix(0, nrow = p, ncol = p) # store XT * Vinv * X
       XTVinvZ_i <- vector(length = length(ID.number), "list") # store XT * Vinv * Z
       obs.ind <- obs_ind
-      
+
       for (id in ID.number) { ## iterate for each subject
         subj_ind <- obs_ind[[as.character(id)]]
         subj.ind <- subj_ind
-        
-        if (randInt_flag) {
+
+        if (randint_flag) {
           Ji <- length(subj_ind)
           V.subj <- matrix(HHat[1, s], nrow = Ji, ncol = Ji) + diag(RHat[s], Ji)
         } else {
           V.subj <- Z[subj_ind, , drop = FALSE] %*% tcrossprod(cov.trimmed, Z[subj_ind, , drop = FALSE]) +
             diag(RHat[s], length(subj_ind))
         }
-        
+
         V.subj.inv <- as.matrix(Rfast::spdinv(V.subj))
-        
+
         XTVinvX <- XTVinvX + crossprod(matrix(designmat[subj.ind,], ncol = p),
                                        V.subj.inv) %*% matrix(designmat[subj.ind,], ncol = p)
-        
-        if (randInt_flag) {
+
+        if (randint_flag) {
           XTVinvZ_i[[as.character(id)]] <- crossprod(matrix(designmat[subj.ind,], ncol = p),
                                                      V.subj.inv) %*% matrix(1, nrow = Ji, ncol = 1)
         } else {
@@ -1048,13 +1047,13 @@ fui <- function(
                                                      V.subj.inv) %*% Z[subj.ind,,drop = FALSE]
         }
       }
-      
-      var.beta.tilde.theo[,,s] <- as.matrix(Rfast::spdinv(XTVinvX)) 
+
+      var.beta.tilde.theo[,,s] <- as.matrix(Rfast::spdinv(XTVinvX))
 
       return(list(XTViv = XTVinvZ_i,
                   var.beta.tilde.theo = var.beta.tilde.theo[,,s]))
     }
-    
+
     # Fit massively univariate mixed models
     if (parallel) {
       # check if os is windows and use parLapply
@@ -1063,7 +1062,7 @@ fui <- function(
           edcomp <- base::eigen(V, symmetric = TRUE) ## trim non-positive eigenvalues to ensure positive semidefinite
           eigen.positive <- which(edcomp$values > 0)
           q=ncol(V)
-          
+
           if (length(eigen.positive) == q) {
             # nothing needed here because matrix is already PSD
             return(V)
@@ -1076,26 +1075,26 @@ fui <- function(
             return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(diag(edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), q, q)) # Matrix::Diagonal
           }
         }
-        
+
         cl <- parallel::makePSOCKcluster(num_cores)
-        massVar <- parallel::parLapply(cl = cl, X = argvals, fun = parallel_fn) 
+        massVar <- parallel::parLapply(cl = cl, X = argvals, fun = parallel_fn)
         parallel::stopCluster(cl)
-        
+
         # if not Windows use mclapply
       } else {
         massVar <- parallel::mclapply(X = argvals, FUN = parallel_fn, mc.cores = num_cores)
       }
     } else {
-      massVar <- lapply(argvals, parallel_fn, 
-                        randInt_flag = randInt_flag)
+      massVar <- lapply(argvals, parallel_fn,
+                        randint_flag = randint_flag)
     }
-    
-    XTVinvZ_all <- lapply(argvals, function(s) 
+
+    XTVinvZ_all <- lapply(argvals, function(s)
       massVar[[s]]$XTViv[lengths(massVar[[s]]$XTViv) != 0])
-    var.beta.tilde.theo <- lapply(argvals, function(s) 
+    var.beta.tilde.theo <- lapply(argvals, function(s)
       massVar[[s]]$var.beta.tilde.theo)
     var.beta.tilde.theo <- simplify2array(var.beta.tilde.theo)
-    
+
     suppressWarnings(rm(massVar, resStart, res_template, template_cols))
 
     ##########################################################################
