@@ -1005,7 +1005,7 @@ fui <- function(
       } else {
         # sum of outerproducts of eigenvectors scaled by eigenvalues for all positive eigenvalues
         return(
-          matrix(
+          as.matrix(
             edcomp$vectors[, eigen.positive] %*% tcrossprod(diag(edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
       }
     }
@@ -1120,25 +1120,6 @@ fui <- function(
     if (parallel) {
       # check if os is windows and use parLapply
       if(.Platform$OS.type == "windows") {
-        eigenval_trim <- function(V) {
-          ## trim non-positive eigenvalues to ensure positive semidefinite
-          edcomp <- base::eigen(V, symmetric = TRUE)
-          eigen.positive <- which(edcomp$values > 0)
-          q=ncol(V)
-
-          if (length(eigen.positive) == q) {
-            # nothing needed here because matrix is already PSD
-            return(V)
-          }else if (length(eigen.positive) == 0) {
-            return(tcrossprod(edcomp$vectors[,1]) * edcomp$values[1])
-          }else if (length(eigen.positive) == 1) {
-            return(tcrossprod(as.vector(edcomp$vectors[,1])) * as.numeric(edcomp$values[1]))
-          } else {
-            # sum of outerproducts of eigenvectors scaled by eigenvalues for all positive eigenvalues
-            return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(diag(edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), q, q)) # Matrix::Diagonal
-          }
-        }
-
         cl <- parallel::makePSOCKcluster(num_cores)
         massVar <- parallel::parLapply(cl = cl, X = argvals, fun = parallel_fn)
         parallel::stopCluster(cl)
