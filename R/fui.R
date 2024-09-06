@@ -1076,10 +1076,10 @@ fui <- function(
 
       XTVinvX <- matrix(0, nrow = p, ncol = p) # store XT * Vinv * X
       XTVinvZ_i <- vector(length = length(ID.number), "list") # store XT * Vinv * Z
-      obs.ind <- obs_ind
+      # obs.ind <- obs_ind
 
       for (id in ID.number) { ## iterate for each subject
-        subj_ind <- obs_ind[[as.character(id)]]
+        subj_ind <- obs.ind[[as.character(id)]]
         subj.ind <- subj_ind
 
         if (randint_flag) {
