@@ -2,3 +2,8 @@
 ^renv\.lock$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+rebuild\.R
+fui_conc\.Rmd
+rebuild\.Rmd
+^\.gitignore$
+^\.github/

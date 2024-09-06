@@ -154,7 +154,8 @@ for extremely large datasets.}
 \item{G_return}{Logical, indicating whether to return (smoothed and trimmed)
 G = Cov(u(s_t), u(s_l)). Defaults to \code{FALSE}.}
 
-\item{impute_outcome}{Logical, indicating whether to impute missing outcome values with FPCA. Defaults to \code{FALSE}.}
+\item{impute_outcome}{Logical, indicating whether to impute missing outcome
+values with FPCA. Defaults to \code{FALSE}.}
 }
 \value{
 A list containing:

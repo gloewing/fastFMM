@@ -6,6 +6,7 @@
 \usage{
 G_estimate(
   data,
+  L,
   out_index,
   data_cov,
   ztlist,
@@ -20,6 +21,8 @@ G_estimate(
 }
 \arguments{
 \item{data}{A data frame containing all variables in formula}
+
+\item{L}{Number of columns of outcome variables}
 
 \item{out_index}{Indices that contain the outcome variables}
 

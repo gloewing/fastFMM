@@ -32,35 +32,43 @@
 #' Defaults to \code{FALSE}.
 #' @param argvals A vector containing locations of observations on the
 #' functional domain. If not specified, a regular grid across the range of
-#' the domain is assumed. Currently only supported for bootstrap (\code{analytic=FALSE}).
-#' @param nknots_min Minimal number of knots in the penalized smoothing for the regression coefficients.
-#' Defaults to \code{NULL}, which then uses L/2 where L is the dimension of the functional domain.
-#' @param nknots_min_cov Minimal number of knots in the penalized smoothing for the covariance matrices.
+#' the domain is assumed. Currently only supported for bootstrap
+#' (\code{analytic=FALSE}).
+#' @param nknots_min Minimal number of knots in the penalized smoothing for the
+#' regression coefficients.
+#' Defaults to \code{NULL}, which then uses L/2 where L is the dimension of the
+#' functional domain.
+#' @param nknots_min_cov Minimal number of knots in the penalized smoothing for
+#' the covariance matrices.
 #' Defaults to \code{35}.
-#' @param smooth_method How to select smoothing parameter in step 2. Defaults to \code{"GCV.Cp"}
-#' @param splines Spline type used for penalized splines smoothing. We use the same syntax
-#' as the mgcv package. Defaults to \code{"tp"}
+#' @param smooth_method How to select smoothing parameter in step 2. Defaults to
+#'  \code{"GCV.Cp"}
+#' @param splines Spline type used for penalized splines smoothing. We use the
+#' same syntax as the mgcv package. Defaults to \code{"tp"}.
 #' @param design_mat Logical, indicating whether to return the design matrix.
 #' Defaults to \code{FALSE}
 #' @param residuals Logical, indicating whether to save residuals from
 #' unsmoothed LME. Defaults to \code{FALSE}.
-#' @param num_boots Number of samples when using bootstrap inference. Defaults to 500.
-#' @param boot_type Bootstrap type (character): "cluster", "case", "wild", "reb",
-#' "residual", "parametric", "semiparametric". \code{NULL} defaults to "cluster"
-#' for non-gaussian responses and "wild" for gaussian responses. For small cluster
-#' (n<=10) gaussian responses, defaults to "reb"
+#' @param num_boots Number of samples when using bootstrap inference. Defaults
+#' to 500.
+#' @param boot_type Bootstrap type (character): "cluster", "case", "wild",
+#' "reb", "residual", "parametric", "semiparametric". \code{NULL} defaults to
+#' "cluster" for non-gaussian responses and "wild" for gaussian responses. For
+#' small cluster (n<=10) gaussian responses, defaults to "reb".
 #' @param seed Numeric value used to make sure bootstrap replicate (draws) are
 #' correlated across functional domains for certain bootstrap approach
 #' @param subj_ID Name of the variable that contains subject ID.
 #' @param num_cores Number of cores for parallelization. Defaults to 1.
-#' @param caic Logical, indicating whether to calculate cAIC. Defaults to \code{FALSE}.
+#' @param caic Logical, indicating whether to calculate cAIC. Defaults to
+#' \code{FALSE}.
 #' @param REs Logical, indicating whether to return random effect estimates.
 #' Defaults to \code{FALSE}.
 #' @param non_neg 0 - no non-negativity constrains, 1 - non-negativity
 #' constraints on every coefficient for variance, 2 - non-negativity on
 #' average of coefficents for 1 variance term. Defaults to 0.
 #' @param MoM Method of moments estimator. Defaults to 1.
-#' @param impute_outcome Logical, indicating whether to impute missing outcome values with FPCA. Defaults to \code{FALSE}.
+#' @param impute_outcome Logical, indicating whether to impute missing outcome
+#' values with FPCA. Defaults to \code{FALSE}.
 #'
 #' @return A list containing:
 #' \item{betaHat}{Estimated functional fixed effects}
@@ -132,6 +140,9 @@ fui <- function(
 
   # 0. Setup ###################################################################
 
+  print('REBUILD SANITY CHECK')
+  message('REBUILD SANITY CHECK')
+
   # If doing parallel computing, set up the number of cores
   if (parallel & !is.integer(num_cores))
     num_cores <- as.integer(round(parallel::detectCores() * 0.75))
@@ -199,13 +210,18 @@ fui <- function(
           )$Yhat[which(is.na(data[, out_index]))]
         )
       }
-    }else if(analytic & !impute_outcome){
-      message(paste("Removing",
-                    missing_rows,
-                    "rows with missing functional outcome values.", , "\n",
-                    "To impute missing outcome values with FPCA, set fui() argument: impute_outcome = TRUE "))
+    } else if (analytic & !impute_outcome) {
+      message(
+        paste(
+          "Removing", missing_rows,
+          "rows with missing functional outcome values.", "\n",
+          "To impute missing outcome values with FPCA, set fui() argument:",
+          "impute_outcome = TRUE"
+        )
+      )
 
-      data[, out_index] <- data[-missing_rows, out_index] # remove data with missing rows
+      # remove data with missing rows
+      data[, out_index] <- data[-missing_rows, out_index]
     }
   }
 
@@ -244,6 +260,8 @@ fui <- function(
       )
     L <- length(argvals)
   }
+
+  print(paste0('No. argvals: ', L))
 
   if (family == "gaussian" & analytic & L > 400 & var)
     message(
@@ -285,15 +303,18 @@ fui <- function(
     }
 
   } else {
-    massmm <- lapply(argvals,
-                     unimm,
-                     data = data,
-                     model_formula = model_formula,
-                     family = family,
-                     residuals = residuals,
-                     caic = caic,
-                     REs = REs,
-                     analytic = analytic)
+    message(paste("MacOS/Unix LMM cores:", num_cores))
+    massmm <- lapply(
+      argvals,
+      unimm,
+      data = data,
+      model_formula = model_formula,
+      family = family,
+      residuals = residuals,
+      caic = caic,
+      REs = REs,
+      analytic = analytic
+    )
   }
 
   # Obtain betaTilde, fixed effects estimates
@@ -841,6 +862,7 @@ fui <- function(
 
       GTilde <- G_estimate(
         data = data,
+        L = L,
         out_index = out_index,
         data_cov = data_cov,
         ztlist = ztlist,
@@ -968,7 +990,8 @@ fui <- function(
 
     ### Create a function that trims eigenvalues and return PSD matrix, V is a n x n matrix
     eigenval_trim <- function(V) {
-      edcomp <- eigen(V, symmetric = TRUE) ## trim non-positive eigenvalues to ensure positive semidefinite
+      ## trim non-positive eigenvalues to ensure positive semidefinite
+      edcomp <- eigen(V, symmetric = TRUE)
       eigen.positive <- which(edcomp$values > 0)
       q=ncol(V)
 
@@ -981,7 +1004,9 @@ fui <- function(
         return(tcrossprod(as.vector(edcomp$vectors[,1])) * as.numeric(edcomp$values[1]))
       } else {
         # sum of outerproducts of eigenvectors scaled by eigenvalues for all positive eigenvalues
-        return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(diag(edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
+        return(
+          matrix(
+            edcomp$vectors[, eigen.positive] %*% tcrossprod(diag(edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
       }
     }
 
@@ -1007,6 +1032,43 @@ fui <- function(
     resStart <- cov_organize_start(HHat[,1])
     res_template <- resStart$v_list_template # index template
     template_cols <- ncol(res_template)
+
+    # Calculate the inter-location covariance of betaTilde:
+    # Cov(betaTilde(s_1), betaTilde(s_2))
+    ## Create cov.beta.tilde.theo to store covariance of betaTilde
+    cov.beta.tilde.theo <- array(NA, dim = c(p, p, L, L))
+    if (randint_flag) {
+      resStart <- cov_organize_start(GHat[1,2]) # arbitrarily start
+    } else {
+      resStart <- cov_organize_start(GHat[,1,2]) # arbitrarily start
+    }
+
+    res_template <- resStart$v_list_template # index template
+    template_cols <- ncol(res_template)
+
+    ## Calculate Cov(betaTilde) for each pair of location
+    for (i in 1:L) {
+      for (j in i:L) {
+        V.cov.subj <- list()
+        tmp <- matrix(0, nrow = p, ncol = p) ## store intermediate part
+        if (randint_flag) {
+          G_use <- GHat[i, j]
+        } else {
+          G_use <- eigenval_trim( matrix(c(GHat[, i, j], 0)[res_template], template_cols) )
+        }
+
+        for (id in ID.number) {
+          # AX: Error: non-numeric arguments
+          # AX: Possibly from non-numeric output of eigenval_trim
+          tmp <- tmp + XTVinvZ_all[[i]][[as.character(id)]] %*% tcrossprod(G_use, XTVinvZ_all[[j]][[as.character(id)]])
+        }
+
+        ## Calculate covariance using XTVinvX and tmp to save memory
+        cov.beta.tilde.theo[, , i, j] <- var.beta.tilde.theo[, , i] %*% tmp %*% var.beta.tilde.theo[,,j]
+      }
+    }
+
+    suppressWarnings(rm(V.subj, V.cov.subj, Z, XTVinvZ_all, resStart, res_template, template_cols))
 
     ## Calculate Var(betaTilde) for each location
     parallel_fn <- function(s){
@@ -1059,7 +1121,8 @@ fui <- function(
       # check if os is windows and use parLapply
       if(.Platform$OS.type == "windows") {
         eigenval_trim <- function(V) {
-          edcomp <- base::eigen(V, symmetric = TRUE) ## trim non-positive eigenvalues to ensure positive semidefinite
+          ## trim non-positive eigenvalues to ensure positive semidefinite
+          edcomp <- base::eigen(V, symmetric = TRUE)
           eigen.positive <- which(edcomp$values > 0)
           q=ncol(V)
 
