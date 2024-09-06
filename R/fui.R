@@ -1068,7 +1068,8 @@ fui <- function(
       }
     }
 
-    print(class(G_use))
+    message(paste("class", class(G_use)))
+
     suppressWarnings(rm(V.subj, V.cov.subj, Z, XTVinvZ_all, resStart, res_template, template_cols))
 
     ## Calculate Var(betaTilde) for each location
