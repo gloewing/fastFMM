@@ -7,6 +7,7 @@
 #' A helper function for `fui`.
 #'
 #' @param data A data frame containing all variables in formula
+#' @param L Number of columns of outcome variables
 #' @param out_index Indices that contain the outcome variables
 #' @param data_cov (unsure) A matrix of covariance of the data
 #' @param ztlist A list of the design matrices corresponding to random effects
@@ -27,6 +28,7 @@
 
 G_estimate <- function(
   data,
+  L,
   out_index,
   data_cov,
   ztlist,
