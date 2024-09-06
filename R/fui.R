@@ -1005,7 +1005,7 @@ fui <- function(
       } else {
         # sum of outerproducts of eigenvectors scaled by eigenvalues for all positive eigenvalues
         return(
-          as.matrix(
+          matrix(
             edcomp$vectors[, eigen.positive] %*% tcrossprod(diag(edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
       }
     }
@@ -1068,6 +1068,7 @@ fui <- function(
       }
     }
 
+    print(class(G_use))
     suppressWarnings(rm(V.subj, V.cov.subj, Z, XTVinvZ_all, resStart, res_template, template_cols))
 
     ## Calculate Var(betaTilde) for each location
