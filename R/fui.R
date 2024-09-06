@@ -140,9 +140,6 @@ fui <- function(
 
   # 0. Setup ###################################################################
 
-  print('REBUILD SANITY CHECK')
-  message('REBUILD SANITY CHECK')
-
   # If doing parallel computing, set up the number of cores
   if (parallel & !is.integer(num_cores))
     num_cores <- as.integer(round(parallel::detectCores() * 0.75))
@@ -260,8 +257,6 @@ fui <- function(
       )
     L <- length(argvals)
   }
-
-  print(paste0('No. argvals: ', L))
 
   if (family == "gaussian" & analytic & L > 400 & var)
     message(
@@ -1032,46 +1027,7 @@ fui <- function(
     resStart <- cov_organize_start(HHat[,1])
     res_template <- resStart$v_list_template # index template
     template_cols <- ncol(res_template)
-
-    # Calculate the inter-location covariance of betaTilde:
-    # Cov(betaTilde(s_1), betaTilde(s_2))
-    ## Create cov.beta.tilde.theo to store covariance of betaTilde
-    cov.beta.tilde.theo <- array(NA, dim = c(p, p, L, L))
-    if (randint_flag) {
-      resStart <- cov_organize_start(GHat[1,2]) # arbitrarily start
-    } else {
-      resStart <- cov_organize_start(GHat[,1,2]) # arbitrarily start
-    }
-
-    res_template <- resStart$v_list_template # index template
-    template_cols <- ncol(res_template)
-
-    ## Calculate Cov(betaTilde) for each pair of location
-    for (i in 1:L) {
-      for (j in i:L) {
-        V.cov.subj <- list()
-        tmp <- matrix(0, nrow = p, ncol = p) ## store intermediate part
-        if (randint_flag) {
-          G_use <- GHat[i, j]
-        } else {
-          G_use <- eigenval_trim( matrix(c(GHat[, i, j], 0)[res_template], template_cols) )
-        }
-
-        for (id in ID.number) {
-          # AX: Error: non-numeric arguments
-          # AX: Possibly from non-numeric output of eigenval_trim
-          tmp <- tmp + XTVinvZ_all[[i]][[as.character(id)]] %*% tcrossprod(G_use, XTVinvZ_all[[j]][[as.character(id)]])
-        }
-
-        ## Calculate covariance using XTVinvX and tmp to save memory
-        cov.beta.tilde.theo[, , i, j] <- var.beta.tilde.theo[, , i] %*% tmp %*% var.beta.tilde.theo[,,j]
-      }
-    }
-
-    message(paste("class", class(G_use)))
-
-    suppressWarnings(rm(V.subj, V.cov.subj, Z, XTVinvZ_all, resStart, res_template, template_cols))
-
+                                 
     ## Calculate Var(betaTilde) for each location
     parallel_fn <- function(s){
 
