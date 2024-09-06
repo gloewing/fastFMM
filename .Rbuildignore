@@ -5,3 +5,5 @@
 rebuild\.R
 fui_conc\.Rmd
 rebuild\.Rmd
+^\.gitignore$
+^\.github/

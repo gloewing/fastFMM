@@ -990,7 +990,8 @@ fui <- function(
 
     ### Create a function that trims eigenvalues and return PSD matrix, V is a n x n matrix
     eigenval_trim <- function(V) {
-      edcomp <- eigen(V, symmetric = TRUE) ## trim non-positive eigenvalues to ensure positive semidefinite
+      ## trim non-positive eigenvalues to ensure positive semidefinite
+      edcomp <- eigen(V, symmetric = TRUE)
       eigen.positive <- which(edcomp$values > 0)
       q=ncol(V)
 
@@ -1003,7 +1004,9 @@ fui <- function(
         return(tcrossprod(as.vector(edcomp$vectors[,1])) * as.numeric(edcomp$values[1]))
       } else {
         # sum of outerproducts of eigenvectors scaled by eigenvalues for all positive eigenvalues
-        return(matrix(edcomp$vectors[,eigen.positive] %*% tcrossprod(diag(edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
+        return(
+          matrix(
+            edcomp$vectors[, eigen.positive] %*% tcrossprod(diag(edcomp$values[eigen.positive]), edcomp$vectors[,eigen.positive]), ncol = q))
       }
     }
 
@@ -1042,26 +1045,29 @@ fui <- function(
 
     res_template <- resStart$v_list_template # index template
     template_cols <- ncol(res_template)
+
     ## Calculate Cov(betaTilde) for each pair of location
     for (i in 1:L) {
       for (j in i:L) {
         V.cov.subj <- list()
         tmp <- matrix(0, nrow = p, ncol = p) ## store intermediate part
         if (randint_flag) {
-          G_use <- GHat[i,j]
+          G_use <- GHat[i, j]
         } else {
           G_use <- eigenval_trim( matrix(c(GHat[, i, j], 0)[res_template], template_cols) )
         }
 
         for (id in ID.number) {
+          # AX: Error: non-numeric arguments
+          # AX: Possibly from non-numeric output of eigenval_trim
           tmp <- tmp + XTVinvZ_all[[i]][[as.character(id)]] %*% tcrossprod(G_use, XTVinvZ_all[[j]][[as.character(id)]])
         }
 
         ## Calculate covariance using XTVinvX and tmp to save memory
-        cov.beta.tilde.theo[, , i, j] <- var.beta.tilde.theo[,,i] %*% tmp %*% var.beta.tilde.theo[,,j]
-
+        cov.beta.tilde.theo[, , i, j] <- var.beta.tilde.theo[, , i] %*% tmp %*% var.beta.tilde.theo[,,j]
       }
     }
+
     suppressWarnings(rm(V.subj, V.cov.subj, Z, XTVinvZ_all, resStart, res_template, template_cols))
 
     ## Calculate Var(betaTilde) for each location
@@ -1115,7 +1121,8 @@ fui <- function(
       # check if os is windows and use parLapply
       if(.Platform$OS.type == "windows") {
         eigenval_trim <- function(V) {
-          edcomp <- base::eigen(V, symmetric = TRUE) ## trim non-positive eigenvalues to ensure positive semidefinite
+          ## trim non-positive eigenvalues to ensure positive semidefinite
+          edcomp <- base::eigen(V, symmetric = TRUE)
           eigen.positive <- which(edcomp$values > 0)
           q=ncol(V)
 
