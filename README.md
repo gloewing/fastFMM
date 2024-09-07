@@ -25,8 +25,8 @@ install_github("gloewing/fastFMM")
 
 ###  Package Usage
 
-For the usage and a tutorial on package functions, please refer to [fastFMM's Vignette](https://rpubs.com/gloewinger/1110512). 
-
+- For the usage and a tutorial on package functions, please refer to [fastFMM's Vignette](https://rpubs.com/gloewinger/1110512). 
+- For more extensive examples, see the [Photometry Analysis Guide](https://github.com/gloewing/photometry_FLMM/blob/main/README.md)
 <br />
 
 ## Repository Folders
