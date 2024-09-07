@@ -413,7 +413,7 @@ fui <- function(
 
     # Condition for using G_estimate_randint
 
-     <- I(
+    randint_flag <- I(
       length(fit_uni@cnms) == 1 & length(fit_uni@cnms[[group]]) == 1 & fit_uni@cnms[[group]][1] == "(Intercept)"
     )
 
