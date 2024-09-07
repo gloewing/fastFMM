@@ -809,7 +809,7 @@ fui <- function(
 
     ## Calculate Method of Moments estimator for G()
     # with potential NNLS correction for diagonals (for variance terms)
-    if () {
+    if (randint_flag) {
 
       GTilde <- G_estimate_randint(
         data = data,
