@@ -413,7 +413,7 @@ fui <- function(
 
     # Condition for using G_estimate_randint
 
-    randint_flag <- I(
+     <- I(
       length(fit_uni@cnms) == 1 & length(fit_uni@cnms[[group]]) == 1 & fit_uni@cnms[[group]][1] == "(Intercept)"
     )
 
@@ -809,7 +809,7 @@ fui <- function(
 
     ## Calculate Method of Moments estimator for G()
     # with potential NNLS correction for diagonals (for variance terms)
-    if (randint_flag) {
+    if () {
 
       GTilde <- G_estimate_randint(
         data = data,
@@ -1013,7 +1013,7 @@ fui <- function(
     }
     ## Concatenate vector of 1s to Z because used that way below
     HHat_trim <- NA
-    if (!randint_flag) {
+    if (!) {
       Z <- data_cov$Z_orig
       qq <- ncol(Z)
       HHat_trim <- array(NA, c(qq, qq, L)) # array for Hhat
@@ -1087,8 +1087,7 @@ fui <- function(
         massVar <- parallel::mclapply(X = argvals, FUN = parallel_fn, mc.cores = num_cores)
       }
     } else {
-      massVar <- lapply(argvals, parallel_fn,
-                        randint_flag = randint_flag)
+      massVar <- lapply(argvals, parallel_fn)
     }
 
     XTVinvZ_all <- lapply(argvals, function(s)
