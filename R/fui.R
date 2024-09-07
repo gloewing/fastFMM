@@ -276,7 +276,6 @@ fui <- function(
   if (parallel) {
     # check if os is windows and use parLapply
     if(.Platform$OS.type == "windows") {
-      message(paste("Windows LMM cores:", num_cores))
       cl <- makePSOCKcluster(num_cores)
       massmm <- parLapply(cl = cl, X = argvals, fun = unimm)
       stopCluster(cl)
@@ -298,7 +297,6 @@ fui <- function(
     }
 
   } else {
-    message(paste("MacOS/Unix LMM cores:", num_cores))
     massmm <- lapply(
       argvals,
       unimm,
@@ -1013,7 +1011,7 @@ fui <- function(
     }
     ## Concatenate vector of 1s to Z because used that way below
     HHat_trim <- NA
-    if (!) {
+    if (!randint_flag) {
       Z <- data_cov$Z_orig
       qq <- ncol(Z)
       HHat_trim <- array(NA, c(qq, qq, L)) # array for Hhat
