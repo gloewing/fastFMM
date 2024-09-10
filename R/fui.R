@@ -188,7 +188,7 @@ fui <- function(
 
       message(
         paste(
-          "Imputing", length(out_index),
+          "Imputing", sum(is.na(data[,out_index])),
           "values in functional response with longitudinal functional PCA"
         )
       )
@@ -219,7 +219,7 @@ fui <- function(
                   paste(
                     "Removing", length(missing_rows),
                     "rows with missing functional outcome values.", "\n",
-                    "To impute missing outcome values with FPCA, set fui() argument:",
+                    "To impute missing outcome values with FPCA, set fui() argument: \n",
                     "impute_outcome = TRUE"
                   )
                 )
