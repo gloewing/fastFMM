@@ -137,7 +137,8 @@ fui <- function(
   non_neg = 0,
   MoM = 1
 ) {
-
+  # AX: Quick check for windows rebuilds
+  message('REBUILD CHECK 2')
   # 0. Setup ###################################################################
 
   # If doing parallel computing, set up the number of cores
@@ -278,8 +279,41 @@ fui <- function(
     if(.Platform$OS.type == "windows") {
       message(paste("Windows LMM cores:", num_cores))
       cl <- makePSOCKcluster(num_cores)
-      massmm <- parLapply(cl = cl, X = argvals, fun = unimm)
-      stopCluster(cl)
+
+      # tryCatch ensures the cluster is stopped even during errors
+      massmm <- tryCatch(
+        parLapply(
+          cl = cl,
+          X = argvals,
+          fun = unimm,
+          data = data,
+          model_formula = model_formula,
+          family = family,
+          residuals = residuals,
+          caic = caic,
+          REs = REs,
+          analytic = analytic
+        ),
+        warning = function(w) {
+          print(
+            paste0(
+              'Warning occurred when parallelizing univariate fits:', '\n',
+              w
+            )
+          )
+        },
+        error = function(e) {
+          stop(
+            paste0('Function stopped when parallelizing univariate fits:\n', e)
+          )
+          stopCluster(cl)
+        },
+        finally = {
+          # stopCluster(cl)
+          if (!silent)
+            print("Finished massive univariate fitting.")
+        }
+      )
 
       # if not Windows use mclapply
     } else {
@@ -1027,7 +1061,7 @@ fui <- function(
     resStart <- cov_organize_start(HHat[,1])
     res_template <- resStart$v_list_template # index template
     template_cols <- ncol(res_template)
-                                 
+
     ## Calculate Var(betaTilde) for each location
     parallel_fn <- function(s){
 
@@ -1040,7 +1074,6 @@ fui <- function(
 
       XTVinvX <- matrix(0, nrow = p, ncol = p) # store XT * Vinv * X
       XTVinvZ_i <- vector(length = length(ID.number), "list") # store XT * Vinv * Z
-      # obs.ind <- obs_ind
 
       for (id in ID.number) { ## iterate for each subject
         subj_ind <- obs.ind[[as.character(id)]]
@@ -1054,6 +1087,7 @@ fui <- function(
             diag(RHat[s], length(subj_ind))
         }
 
+        # Rfast provides a faster matrix inversion
         V.subj.inv <- as.matrix(Rfast::spdinv(V.subj))
 
         XTVinvX <- XTVinvX + crossprod(matrix(designmat[subj.ind,], ncol = p),
@@ -1068,34 +1102,93 @@ fui <- function(
         }
       }
 
-      var.beta.tilde.theo[,,s] <- as.matrix(Rfast::spdinv(XTVinvX))
+      var.beta.tilde.theo[, , s] <- as.matrix(Rfast::spdinv(XTVinvX))
 
-      return(list(XTViv = XTVinvZ_i,
-                  var.beta.tilde.theo = var.beta.tilde.theo[,,s]))
+      return(
+        list(
+          XTViv = XTVinvZ_i,
+          var.beta.tilde.theo = var.beta.tilde.theo[,,s]
+        )
+      )
     }
 
     # Fit massively univariate mixed models
     if (parallel) {
       # check if os is windows and use parLapply
       if(.Platform$OS.type == "windows") {
-        cl <- parallel::makePSOCKcluster(num_cores)
-        massVar <- parallel::parLapply(cl = cl, X = argvals, fun = parallel_fn)
-        parallel::stopCluster(cl)
+        # AX: removing cl init
+        # cl <- parallel::makePSOCKcluster(num_cores)
+
+        # Add the necessary variables for the function to work
+        clusterExport(
+          cl = cl,
+          varlist = c(
+            "eigenval_trim",
+            "HHat",
+            "s",
+            "res_template",
+            "template_cols",
+            "p",
+            "ID.number",
+            "obs.ind",
+            "id",
+            "RHat"
+          ),
+          # Looking in the function's env allows eigenl_trim to load
+          envir = environment()
+        )
+
+        # Z is dependent on randint_flag
+        if (!randint_flag)
+          clusterExport(cl, "Z", envir = environment())
+
+        # tryCatch ensures the cluster is stopped even during errors
+        massVar <- tryCatch(
+          parLapply(
+            cl = cl,
+            X = argvals,
+            fun = parallel_fn
+          ),
+          warning = function(w) {
+            print(
+              paste0(
+                'Warning occurred when parallelizing variances:', '\n',
+                w
+              )
+            )
+          },
+          error = function(e) {
+            stop(
+              paste0('Function stopped when parallelizing variance:\n', e)
+            )
+          stopCluster(cl)
+          },
+          finally = {
+            stopCluster(cl)
+            if (!silent)
+              print("Finished massive variance calculation.")
+
+          }
+        )
 
         # if not Windows use mclapply
       } else {
         massVar <- parallel::mclapply(X = argvals, FUN = parallel_fn, mc.cores = num_cores)
       }
     } else {
-      massVar <- lapply(argvals, parallel_fn,
-                        randint_flag = randint_flag)
+      massVar <- lapply(
+        argvals,
+        parallel_fn,
+        randint_flag = randint_flag
+      )
     }
 
     XTVinvZ_all <- lapply(argvals, function(s)
       massVar[[s]]$XTViv[lengths(massVar[[s]]$XTViv) != 0])
     var.beta.tilde.theo <- lapply(argvals, function(s)
       massVar[[s]]$var.beta.tilde.theo)
-    var.beta.tilde.theo <- simplify2array(var.beta.tilde.theo)
+    var.beta.tilde.theo <- simplify2array(var.beta.tilde.theo) %>%
+      array(dim = c(p, p, L))
 
     suppressWarnings(rm(massVar, resStart, res_template, template_cols))
 
@@ -1107,9 +1200,9 @@ fui <- function(
     } else {
       resStart <- cov_organize_start(GHat[,1,2]) # arbitrarily start
     }
-    
+
     if (silent == FALSE) print("Step 3.2.1: First step")
-    
+
     res_template <- resStart$v_list_template # index template
     template_cols <- ncol(res_template)
     ## Calculate Cov(betaTilde) for each pair of location
@@ -1122,18 +1215,18 @@ fui <- function(
         } else {
           G_use <- eigenval_trim( matrix(c(GHat[,i,j], 0)[res_template], template_cols) )
         }
-        
+
         for (id in ID.number) {
           tmp <- tmp + XTVinvZ_all[[i]][[as.character(id)]] %*% tcrossprod(G_use, XTVinvZ_all[[j]][[as.character(id)]])
         }
-        
+
         ## Calculate covariance using XTVinvX and tmp to save memory
-        cov.beta.tilde.theo[,,i,j] <- var.beta.tilde.theo[,,i] %*% tmp %*% var.beta.tilde.theo[,,j]
-        
+        cov.beta.tilde.theo[, , i, j] <- var.beta.tilde.theo[, , i] %*% tmp %*% var.beta.tilde.theo[, , j]
+
       }
     }
     suppressWarnings(rm(V.subj, V.cov.subj, Z, XTVinvZ_all, resStart, res_template, template_cols))
-    
+
     ##########################################################################
     ## Step 3.3
     ##########################################################################

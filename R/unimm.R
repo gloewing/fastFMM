@@ -35,12 +35,13 @@ unimm <- function(
   out_index <- grep(paste0("^", model_formula[2]), names(data))
   data$Yl <- unclass(data[,out_index][,l])
 
+  # lme4:: used to circumvent library(lme4) during parallelization
   if(family == "gaussian"){
     fit_uni <- suppressMessages(
-      lmer(
+      lme4::lmer(
         formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
         data = data,
-        control = lmerControl(
+        control = lme4::lmerControl(
           optimizer = "bobyqa",
           optCtrl = list(maxfun = 5000)
         )
@@ -48,11 +49,11 @@ unimm <- function(
     )
   } else {
     fit_uni <- suppressMessages(
-      glmer(
+      lme4::glmer(
         formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
         data = data,
         family = family,
-        control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))
+        control = lme4::glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 5000))
       )
     )
   }
@@ -68,10 +69,10 @@ unimm <- function(
   if(residuals) resids <- as.numeric(residuals(fit_uni))
   if(caic) aic_met <- as.numeric(cAIC4::cAIC(fit_uni)$caic)[1]
   # random effects
-  if(REs) re_df <- ranef(fit_uni)
+  if(REs) re_df <- lme4::ranef(fit_uni)
 
   if(analytic == TRUE) {
-    varcorr <- as.data.frame(VarCorr(fit_uni))
+    varcorr <- as.data.frame(lme4::VarCorr(fit_uni))
     # Extract variance/covariance estimates
     var_random <- varcorr[,4]
 
@@ -83,11 +84,13 @@ unimm <- function(
     names(var_random)[which(varcorr[,1] == "Residual")] <- "var.Residual"
 
     # covariance of random components
-    names(var_random)[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))] <-
-      paste0("cov.",
-             varcorr$grp[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))], ".",
-             varcorr$var1[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))], ".",
-             varcorr$var2[which(!is.na(as.data.frame(VarCorr(fit_uni))[,3]))])
+    names(var_random)[which(!is.na(as.data.frame(lme4::VarCorr(fit_uni))[,3]))] <-
+      paste0(
+        "cov.",
+        varcorr$grp[which(!is.na(as.data.frame(lme4::VarCorr(fit_uni))[,3]))], ".",
+        varcorr$var1[which(!is.na(as.data.frame(lme4::VarCorr(fit_uni))[,3]))], ".",
+        varcorr$var2[which(!is.na(as.data.frame(lme4::VarCorr(fit_uni))[,3]))]
+      )
     se_mat <- summary(fit_uni)$coefficients[,2] ## se of fixed effects
 
     return(
@@ -107,7 +110,7 @@ unimm <- function(
     return(
       list(
         betaTilde = betaTilde,
-        group = as.data.frame(VarCorr(fit_uni))[1,1],
+        group = as.data.frame(lme4::VarCorr(fit_uni))[1,1],
         aic = stats::AIC(fit_uni),
         bic = stats::BIC(fit_uni),
         residuals = resids,
