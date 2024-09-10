@@ -17,6 +17,8 @@
 #' approach or bootstrap. Uses value fed to `fui`.
 #'
 #' @import lme4
+#' @importFrom stats as.formula AIC BIC
+#' @importFrom cAIC4 cAIC
 #'
 #' @return a list containing point estimates, variance estimates, etc.
 
