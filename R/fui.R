@@ -195,6 +195,7 @@ fui <- function(
 
       if (length(out_index) != 1) {
         nknots_fpca <- min(round(length(out_index)/2), 35)
+        if (is.null(argvals) | analytic)     argvals <- 1:L
         tmp <- as.matrix(data[, out_index])
         tmp[which(is.na(tmp))] <- suppressWarnings(
           refund::fpca.face(
