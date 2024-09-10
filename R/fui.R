@@ -213,17 +213,17 @@ fui <- function(
         )
       }
     } else if (analytic & !impute_outcome) {
-      message(
-        paste(
-          "Removing", missing_rows,
-          "rows with missing functional outcome values.", "\n",
-          "To impute missing outcome values with FPCA, set fui() argument:",
-          "impute_outcome = TRUE"
-        )
-      )
-
-      # remove data with missing rows
-      data[, out_index] <- data[-missing_rows, out_index]
+          message(
+                  paste(
+                    "Removing", length(missing_rows),
+                    "rows with missing functional outcome values.", "\n",
+                    "To impute missing outcome values with FPCA, set fui() argument:",
+                    "impute_outcome = TRUE"
+                  )
+                )
+                
+                # remove data with missing rows
+                data <- data[-missing_rows, ]
     }
   }
 
