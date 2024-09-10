@@ -125,6 +125,7 @@ fui <- function(
   nknots_min_cov = 35,
   smooth_method = "GCV.Cp",
   splines = "tp",
+  impute_outcome = FALSE,
   design_mat = FALSE,
   residuals = FALSE,
   num_boots = 500,
