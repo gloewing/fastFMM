@@ -193,6 +193,8 @@ fui <- function(
         )
       )
 
+      nknots_fpca <- min(round(length(out_index)/2), 35)
+
       if (length(out_index) != 1) {
         tmp <- as.matrix(data[, out_index])
         tmp[which(is.na(tmp))] <- suppressWarnings(
