@@ -1178,8 +1178,7 @@ fui <- function(
     } else {
       massVar <- lapply(
         argvals,
-        parallel_fn,
-        randint_flag = randint_flag
+        parallel_fn
       )
     }
 
