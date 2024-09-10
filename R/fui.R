@@ -68,7 +68,7 @@
 #' average of coefficents for 1 variance term. Defaults to 0.
 #' @param MoM Method of moments estimator. Defaults to 1.
 #' @param impute_outcome Logical, indicating whether to impute missing outcome
-#' values with FPCA. Defaults to \code{FALSE}.
+#' values with FPCA. This has not been tested thoroughly so use with caution. Defaults to \code{FALSE}.
 #'
 #' @return A list containing:
 #' \item{betaHat}{Estimated functional fixed effects}
@@ -125,7 +125,6 @@ fui <- function(
   nknots_min_cov = 35,
   smooth_method = "GCV.Cp",
   splines = "tp",
-  impute_outcome = FALSE,
   design_mat = FALSE,
   residuals = FALSE,
   num_boots = 500,
@@ -136,7 +135,8 @@ fui <- function(
   caic = FALSE,
   REs = FALSE,
   non_neg = 0,
-  MoM = 1
+  MoM = 1,
+  impute_outcome = FALSE
 ) {
 
   # 0. Setup ###################################################################
