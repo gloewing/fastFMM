@@ -8,6 +8,8 @@
 #' @param knots The list of interior knots of the numbers of interior knots
 #' @param p Degrees for B-splines, default = 3
 #' @param m Orders of difference penalty, default = 2
+#' @param periodicity Boolean
+#' @param weight optional argument
 #'
 #' @importFrom splines spline.des
 #' @import Matrix
@@ -18,7 +20,8 @@ pspline_setting <- function(
   p = 3,
   m = 2,
   periodicity = FALSE,
-  weight = NULL){
+  weight = NULL
+){
 
   #  copied from: https://rdrr.io/cran/refund/src/R/pspline.setting.R
 

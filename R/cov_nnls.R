@@ -4,6 +4,7 @@
 #' constraints, mainly relying on `nnls` capability from `lsei`.
 #'
 #' @param data Data frame containing all predictor and outcome variables
+#' @param L The dimension of the functional domain
 #' @param out_index Indices of outcome variables in `data`
 #' @param data_cov (unsure) Covariance of variables
 #' @param RE_table Data frame containing random effects and interactions
@@ -13,9 +14,12 @@
 #' @param GTilde Current `GTilde` estimate, created as an intermediate in `G_estimate`
 #' @param non_neg (unsure), defaults to 0
 #' @param silent Whether to print the step. Defaults to `TRUE`.
+#'
+#' @return A matrix with the same dimensions as `GTilde`.
 
-cov.nnls <- function(
+cov_nnls <- function(
   data,
+  L,
   out_index,
   data_cov,
   RE_table,

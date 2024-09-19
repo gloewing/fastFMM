@@ -7,3 +7,7 @@ fui_conc\.Rmd
 rebuild\.Rmd
 ^\.gitignore$
 ^\.github/
+^.*\_oop\.*
+^.*\_conc\.*
+^.*\-NOTES\.*
+^data/

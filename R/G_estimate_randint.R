@@ -14,6 +14,7 @@
 #' @return An estimation of the G matrix
 #'
 #' @importFrom Matrix crossprod
+#' @importFrom stats var
 
 # Derive covariance estimates of random components: G(s1,s2)
 ### Create a function that estimates covariance G for random intercepts
@@ -31,7 +32,7 @@ G_estimate_randint <- function(
     print("Step 3.1.1: Method of Moments Covariance Estimator Random Intercept")
 
   GTilde <- matrix(NA, nrow = L, ncol = L)
-  vdm <- crossprod(betaHat, var(designmat) %*% betaHat)
+  vdm <- crossprod(betaHat, stats::var(designmat) %*% betaHat)
   d_temp <- data[, out_index]
 
   for(i in 1:L) {

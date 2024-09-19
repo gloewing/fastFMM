@@ -68,7 +68,8 @@
 #' average of coefficents for 1 variance term. Defaults to 0.
 #' @param MoM Method of moments estimator. Defaults to 1.
 #' @param impute_outcome Logical, indicating whether to impute missing outcome
-#' values with FPCA. This has not been tested thoroughly so use with caution. Defaults to \code{FALSE}.
+#' values with FPCA. This has not been tested thoroughly so use with caution.
+#' Defaults to \code{FALSE}.
 #'
 #' @return A list containing:
 #' \item{betaHat}{Estimated functional fixed effects}
@@ -182,20 +183,20 @@ fui <- function(
 
   # Fill in missing values of functional outcome using FPCA
   # rows with missing outcome values
-  missing_rows <- which( rowSums(is.na(data[,out_index])) != 0 )
-  if ( length(missing_rows) != 0) {
+  missing_rows <- which(rowSums(is.na(data[, out_index])) != 0 )
+  if (length(missing_rows) != 0) {
     if(analytic & impute_outcome){
-
       message(
         paste(
-          "Imputing", sum(is.na(data[,out_index])),
+          "Imputing", sum(is.na(data[, out_index])),
           "values in functional response with longitudinal functional PCA"
         )
       )
 
       if (length(out_index) != 1) {
-        nknots_fpca <- min(round(length(out_index)/2), 35)
-        if (is.null(argvals) | analytic)     argvals <- 1:length(out_index)
+        nknots_fpca <- min(round(length(out_index) / 2), 35)
+        if (is.null(argvals) | analytic)
+          argvals <- 1:length(out_index)
         tmp <- as.matrix(data[, out_index])
         tmp[which(is.na(tmp))] <- suppressWarnings(
           refund::fpca.face(
@@ -215,17 +216,17 @@ fui <- function(
         )
       }
     } else if (analytic & !impute_outcome) {
-          message(
-                  paste(
-                    "Removing", length(missing_rows),
-                    "rows with missing functional outcome values.", "\n",
-                    "To impute missing outcome values with FPCA, set fui() argument: \n",
-                    "impute_outcome = TRUE"
-                  )
-                )
-                
-                # remove data with missing rows
-                data <- data[-missing_rows, ]
+      message(
+        paste(
+          "Removing", length(missing_rows),
+          "rows with missing functional outcome values.", "\n",
+          "To impute missing outcome values with FPCA, set fui() argument: \n",
+          "impute_outcome = TRUE"
+        )
+      )
+
+      # remove data with missing rows
+      data <- data[-missing_rows, ]
     }
   }
 
@@ -1170,6 +1171,9 @@ fui <- function(
     resStart <- cov_organize_start(HHat[,1])
     res_template <- resStart$v_list_template # index template
     template_cols <- ncol(res_template)
+
+    # Initialize the matrix
+    V.subj <- NULL
 
     ## Calculate Var(betaTilde) for each location
     parallel_fn <- function(s){
