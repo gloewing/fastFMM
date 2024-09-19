@@ -73,7 +73,8 @@
 #' @return A list containing:
 #' \item{betaHat}{Estimated functional fixed effects}
 #' \item{argvals}{Location of the observations}
-#' \item{betaHat.var}{Variance estimates of the functional fixed effects (if specified)}
+#' \item{betaHat.var}{Variance estimates of the functional fixed effects
+#' (if specified)}
 #' \item{qn}{critical values used to construct joint CI}
 #' \item{...}{...}
 #'
@@ -140,17 +141,27 @@ fui <- function(
 
   # 0. Setup ###################################################################
 
+  # 0.1 Setup parallelization ==================================================
+
   # If doing parallel computing, set up the number of cores
   if (parallel & !is.integer(num_cores)) {
     num_cores <- as.integer(round(parallel::detectCores() * 0.75))
+    if (num_cores < 2)
+      warning(
+        "Only 1 core found for parallelization.", "\n",
+        "Please ensure enough cores are available for parallel processing, ",
+        "or set `num_cores`"
+      )
     if (!silent)
       message(paste("Number of cores used for parallelization:", num_cores))
   }
 
   # For non-Gaussian family, only do bootstrap inference
-  if (family != "gaussian") analytic <- FALSE
+  if (family != "gaussian")
+    analytic <- FALSE
 
-  # Organize the input from the model formula
+  # 0.2  Organize the input from the model formula =============================
+
   model_formula <- as.character(formula)
   stopifnot(model_formula[1] == "~" & length(model_formula) == 3)
 
@@ -178,6 +189,18 @@ fui <- function(
   # Obtain the dimension of the functional domain
   # Find indices that start with the outcome name
   out_index <- grep(paste0("^", model_formula[2]), names(data))
+
+  # Read the full list of columns or the matrix column
+  # Set L depending on whether out_index is multiple columns or a matrix
+  if (length(out_index) != 1) {
+    # Multiple columns
+    L <- length(out_index)
+  } else {
+    # Matrix column
+    L <- ncol(data[, out_index])
+  }
+
+  # 0.3 Impute missing values ==================================================
 
   # Fill in missing values of functional outcome using FPCA
   # rows with missing outcome values
@@ -226,20 +249,19 @@ fui <- function(
     }
   }
 
+  # 0.4 Detect concurrence =====================================================
+
+  # Assume: if a model formula contains a functional covariate, the fitting will
+  # be concurrent
+  preds <- all.vars(formula)
+
+  if (length(func_covs) > 0)
+    concurrent <- TRUE
+
   # 1. Massively univariate mixed models #######################################
 
   if (!silent)
     print("Step 1: Fit Massively Univariate Mixed Models")
-
-  # Read the full list of columns or the matrix column
-  # Set L depending on whether out_index is multiple columns or a matrix
-  if (length(out_index) != 1) {
-    # Multiple columns
-    L <- length(out_index)
-  } else {
-    # Matrix column
-    L <- ncol(data[,out_index])
-  }
 
   if (analytic & !is.null(argvals) & var)
     message(
@@ -254,7 +276,7 @@ fui <- function(
   } else {
     if (max(argvals) > L)
       stop(
-        paste0(
+        paste(
           "Maximum index specified in argvals is greater than",
           "the total number of columns for the functional outcome"
         )
@@ -275,62 +297,90 @@ fui <- function(
   # Create a matrix to store AICs
   AIC_mat <- matrix(NA, nrow = L, ncol = 2)
 
+  # 1.1 Model classes ==========================================================
+
+  # This class will dictate the unimm method and the variance estimation
+  fui_model <- list(
+    formula = formula,
+    L = L,
+    family = family,
+    residuals = residuals,
+    caic = caic,
+    REs = REs
+  )
+  # "fui" is the base model
+  class(fui_model) <- "fastFMM"
+
+  # Inheritance: fui > fui_analytic > fui_concurrent
+  if (analytic)
+    class(fui_model) <- "fastFMM_analytic"
+
+  if (concurrent) {
+    class(fui_model) <- "fastFMM_concurrent"
+    fui_model$func_covs <- func_covs
+  }
+
+
+
+  # AX: Investigate the SOP for assigning classes
+
+  # 1.2 Massively univariate mixed models ======================================
+
   # Fit massively univariate mixed models
   # Calls unimm to fit each individual lmer model
-  if (parallel) {
-    # check if os is windows and use parLapply
-    if(.Platform$OS.type == "windows") {
-      cl <- makePSOCKcluster(num_cores)
-      # tryCatch ensures the cluster is stopped even during errors
-      massmm <- tryCatch(
-        parLapply(
-          cl = cl,
-          X = argvals,
-          fun = unimm,
-          data = data,
-          model_formula = model_formula,
-          family = family,
-          residuals = residuals,
-          caic = caic,
-          REs = REs,
-          analytic = analytic
-        ),
-        warning = function(w) {
-          print(
-            paste0(
-              "Warning when fitting univariate models in parallel:", "\n",
-              w
-            )
-          )
-        },
-        error = function(e) {
-          stop(
-            paste0("Error when fitting univariate models in parallel:", "\n", e)
-          )
-          stopCluster(cl)
-        },
-        finally = {
-          # Cluster stopped during 3.2 (variance calculation)
-          if (!silent)
-            print("Finished fitting univariate models.")
-        }
-      )
-
-      # if not Windows use mclapply
-    } else {
-      massmm <- parallel::mclapply(
-        argvals,
-        unimm,
+     # check if os is windows and use parLapply
+  if(.Platform$OS.type == "windows") {
+    cl <- makePSOCKcluster(num_cores)
+    # tryCatch ensures the cluster is stopped even during errors
+    massmm <- tryCatch(
+      parLapply(
+        cl = cl,
+        X = argvals,
+        fun = unimm,
         data = data,
         model_formula = model_formula,
         family = family,
         residuals = residuals,
         caic = caic,
         REs = REs,
-        analytic = analytic,
-        mc.cores = num_cores
-      )
-    }
+        analytic = analytic
+      ),
+      warning = function(w) {
+        print(
+          paste0(
+            "Warning when fitting univariate models in parallel:", "\n",
+            w
+          )
+        )
+      },
+      error = function(e) {
+        stop(
+          paste0("Error when fitting univariate models in parallel:", "\n", e)
+        )
+        stopCluster(cl)
+      },
+      finally = {
+        # Cluster stopped during 3.2 (variance calculation)
+        if (!silent)
+          print("Finished fitting univariate models.")
+      }
+    )
+
+    # if not Windows use mclapply
+  } else {
+    massmm <- parallel::mclapply(
+      argvals,
+      unimm,
+      data = data,
+      model_formula = model_formula,
+      family = family,
+      residuals = residuals,
+      caic = caic,
+      REs = REs,
+      analytic = analytic,
+      mc.cores = num_cores
+    )
+  }
 
   } else {
     massmm <- lapply(
