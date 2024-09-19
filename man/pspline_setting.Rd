@@ -21,6 +21,10 @@ pspline_setting(
 \item{p}{Degrees for B-splines, default = 3}
 
 \item{m}{Orders of difference penalty, default = 2}
+
+\item{periodicity}{Boolean}
+
+\item{weight}{optional argument}
 }
 \description{
 A slightly modified copy of [pspline.setting](https://rdrr.io/cran/refund/src/R/pspline.setting.R)

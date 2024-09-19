@@ -121,6 +121,7 @@ G_estimate <- function(
 
     GTilde <- cov_nnls(
       data = data,
+      L = L,
       out_index = out_index,
       data_cov = data_cov,
       RE_table = RE_table,
