@@ -263,6 +263,7 @@ fui <- function(
   if (!silent)
     print("Step 1: Fit Massively Univariate Mixed Models")
 
+  # Message the user based on checks for fit validity
   if (analytic & !is.null(argvals) & var)
     message(
       paste(
@@ -300,50 +301,41 @@ fui <- function(
   # 1.1 Model classes ==========================================================
 
   # This class will dictate the unimm method and the variance estimation
-  fui_model <- list(
+  # These params are common between the classes
+  fui_params <- list(
     formula = formula,
-    L = L,
     family = family,
     residuals = residuals,
     caic = caic,
-    REs = REs
+    REs = REs,
+    analytic = analytic
   )
-  # "fui" is the base model
-  class(fui_model) <- "fastFMM"
-
-  # Inheritance: fui > fui_analytic > fui_concurrent
-  if (analytic)
-    class(fui_model) <- "fastFMM_analytic"
 
   if (concurrent) {
-    class(fui_model) <- "fastFMM_concurrent"
-    fui_model$func_covs <- func_covs
+    # Add the functional covariates into the params
+    fui_params$func_covs <- func_covs
+    uni_model <- do.call(new_unimm_conc, fui_params)
+  } else {
+    uni_model <- do.call(new_unimm, fui_params)
   }
 
-
-
-  # AX: Investigate the SOP for assigning classes
 
   # 1.2 Massively univariate mixed models ======================================
 
   # Fit massively univariate mixed models
   # Calls unimm to fit each individual lmer model
      # check if os is windows and use parLapply
+  # AX: Accidentally removed the parallel condition here; make sure to readd
   if(.Platform$OS.type == "windows") {
     cl <- makePSOCKcluster(num_cores)
     # tryCatch ensures the cluster is stopped even during errors
-    massmm <- tryCatch(
+    massmm_raw <- tryCatch(
       parLapply(
         cl = cl,
         X = argvals,
-        fun = unimm,
+        fun = fit_unimm,
         data = data,
-        model_formula = model_formula,
-        family = family,
-        residuals = residuals,
-        caic = caic,
-        REs = REs,
-        analytic = analytic
+        obj = uni_model
       ),
       warning = function(w) {
         print(
@@ -368,141 +360,18 @@ fui <- function(
 
     # if not Windows use mclapply
   } else {
-    massmm <- parallel::mclapply(
+    massmm_raw <- parallel::mclapply(
       argvals,
-      unimm,
+      fit_unimm,
       data = data,
-      model_formula = model_formula,
-      family = family,
-      residuals = residuals,
-      caic = caic,
-      REs = REs,
-      analytic = analytic,
+      obj = uni_model,
       mc.cores = num_cores
     )
   }
 
-  } else {
-    massmm <- lapply(
-      argvals,
-      unimm,
-      data = data,
-      model_formula = model_formula,
-      family = family,
-      residuals = residuals,
-      caic = caic,
-      REs = REs,
-      analytic = analytic
-    )
-  }
-
-  # Obtain betaTilde, fixed effects estimates
-  betaTilde <- t(do.call(rbind, lapply(massmm, '[[', 1)))
-  colnames(betaTilde) <- argvals
-
-  # Obtain residuals, AIC, BIC, and random effects estimates (analytic)
-  ## AIC/BIC
-  mod_aic <- do.call(c, lapply(massmm, '[[', 'aic'))
-  mod_bic <- do.call(c, lapply(massmm, '[[', 'bic'))
-  mod_caic <- do.call(c, lapply(massmm, '[[', 'caic'))
-  AIC_mat <- cbind(mod_aic, mod_bic, mod_caic)
-  colnames(AIC_mat) <- c("AIC", "BIC", "cAIC")
-
-  ## Store residuals if resids == TRUE
-  resids <- NA
-  if (residuals)
-    resids <- suppressMessages(
-      lapply(massmm, '[[', 'residuals') %>% dplyr::bind_cols()
-    )
-
-  ## random effects
-  if (analytic == TRUE) {
-    if (REs) {
-      randEff <- suppressMessages(
-        simplify2array(
-          lapply(
-            lapply(massmm, '[[', 're_df'),
-            function(x) as.matrix(x[[1]])
-          )
-        )
-      )  # will need to change [[1]] to random effect index if multiple REs
-    } else {
-      randEff <- NULL
-    }
-    se_mat <- suppressMessages(do.call(cbind, lapply(massmm, '[[', 9)))
-  } else {
-    randEff <- se_mat <- NULL
-  }
-
-  # Obtain variance estimates of random effects (analytic)
-  if (analytic == TRUE) {
-    var_random <- t(do.call(rbind, lapply(massmm, '[[', 'var_random')))
-    sigmaesqHat <- var_random["var.Residual", , drop = FALSE]
-    sigmausqHat <- var_random[
-      which(rownames(var_random) != "var.Residual"), , drop = FALSE
-    ]
-
-    # Fit a fake model to obtain design matrix
-    data$Yl <- unclass(data[,out_index][, 1])
-    if (family == "gaussian") {
-      fit_uni <- suppressMessages(
-        lmer(
-          formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
-          data = data,
-          control = lmerControl(optimizer = "bobyqa")
-        )
-      )
-    } else {
-      fit_uni <- suppressMessages(
-        glmer(
-          formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
-          data = data,
-          family = family,
-          control = glmerControl(optimizer = "bobyqa")
-        )
-      )
-    }
-
-    # Design matrix
-    designmat <- stats::model.matrix(fit_uni)
-    name_random <- as.data.frame(VarCorr(fit_uni))[
-      which(!is.na(as.data.frame(VarCorr(fit_uni))[, 3])), 3
-    ]
-
-    # Names of random effects
-    RE_table <- as.data.frame(VarCorr(fit_uni))
-    ranEf_grp <- RE_table[, 1]
-    RE_table <- RE_table[RE_table$grp != "Residual", 1:3]
-    ranEf_grp <- ranEf_grp[ranEf_grp != "Residual"]
-    ztlist <- sapply(getME(fit_uni, "Ztlist"), t)
-
-    # Check if group contains ":" (hierarchical structure) that requires the
-    # group to be specified
-
-    group <- massmm[[1]]$group ## group name in the data
-    if (grepl(":", group, fixed = TRUE)) {
-      if (is.null(subj_ID)) {
-        # Assumes the ID name is to the right of the ":"
-        group <- str_remove(group, ".*:")
-      } else {
-        # Use user-specified ID if it exists
-        group <- subj_ID
-      }
-    }
-
-    if (is.null(subj_ID))
-      subj_ID <- group
-
-    # Condition for using G_estimate_randint
-
-    randint_flag <- I(
-      length(fit_uni@cnms) == 1 &
-      length(fit_uni@cnms[[group]]) == 1 &
-      fit_uni@cnms[[group]][1] == "(Intercept)"
-    )
-
-    rm(fit_uni)
-  }
+  # AX: I think the parallel conditional disappeared here
+  # AX: Add condition for concurrent
+  massmm <- new_massmm(massmm_raw, uni_model)
 
   # 2. Smoothing ###############################################################
 

@@ -80,6 +80,8 @@ G_estimate <- function(
     )
 
     # first part of OLS expression
+    # AX: MoM == 1 for concurrent case -> speedup?
+    # AX: RFast may have options
     XTXX <- tcrossprod( MASS::ginv( crossprod(ZZ) ), ZZ)
     rm(ZZ)
 
