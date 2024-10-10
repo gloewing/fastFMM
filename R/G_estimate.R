@@ -55,7 +55,7 @@ G_estimate.massmm <- function(
   # do.call(cbind, ztlist)
   Z <- as.matrix(data_cov$Z_orig)
   # first part of OLS
-  if(MoM == 2) {
+  if (MoM == 2) {
     # First part of OLS expression
     XTXX <- as.matrix(
       Matrix::tcrossprod(

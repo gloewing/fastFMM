@@ -4,29 +4,23 @@
 #' univariate model step. The method `fit_unimm` will be dispatched to fit the
 #' mixed models.
 #'
-#' @param formula Formula object in lme4 formula syntax.
-#' @param family GLM family of the response. Uses value fed to `fui`.
-#' @param residuals Logical, indicating whether to save residuals from
-#' unsmoothed LME. Uses value fed to `fui`.
-#' @param caic Logical, indicating whether to calculate cAIC. Defaults to
-#' \code{FALSE}.
-#' @param REs Logical, indicating whether to return random effect estimates.
-#' Uses value fed to `fui`.
-#' @param analytic Logical, indicating whether to use the analytic inference
-#' approach or bootstrap. Uses value fed to `fui`.
-#' @param func_covs Character vector of names of the functional covariates.
-#' Defaults to \code{NULL}.
+#' @param formula Formula in `lme4` formula syntax.
+#' @param family Character, GLM family of the response. Passed from `fui`.
+#' @param residuals Logical, indicates whether residuals are saved from
+#' unsmoothed LME. Passed from `fui`.
+#' @param caic Logical, indicates cAIC calculation return. Defaults to `FALSE`.
+#' @param REs Logical, indicates random effect estimates return. Passed from
+#' `fui`.
+#' @param analytic Logical, indicates whether analytic variance will be needed.
+#' Passed from `fui`.
+#' @param concurrent Logical, indicates whether model fitting is concurrent.
+#' @param func_covs Character vector of functional covariate names.
 #'
 #' @return A "unimm" object containing parameters for the univariate step. The
-#' class will be "unimm_conc" if `func_covs` is provided.
+#' class will be "unimm_conc" if indicated by `concurrent = TRUE`.
 
 new_unimm <- function(
-  formula,
-  family,
-  residuals,
-  caic,
-  REs,
-  analytic
+  formula, family, residuals, caic, REs, analytic, concurrent
 ) {
   unimm <- list(
     formula = formula,
@@ -34,13 +28,15 @@ new_unimm <- function(
     residuals = residuals,
     caic = caic,
     REs = REs,
-    analytic = analytic
+    analytic = analytic,
+    concurrent = concurrent,
+    func_covs = func_covs
   )
 
   class(unimm) <- "unimm"
 
   # Create a concurrent model if functional covariates are provided
-  if (!is.null(func_covs)) {
+  if (concurrent) {
     unimm$func_covs <- func_covs
     class(unimm) <- c("unimm_conc", class(unimm))
   }
@@ -73,8 +69,7 @@ fit_unimm <- function(uni_model, ...) {
 #'
 #' @method fit_unimm unimm
 #' @import lme4
-#' @importFrom stats as.formula AIC BIC
-#' @importFrom cAIC4 cAIC
+#' @importFrom stats as.formula
 #'
 #' @return a list containing point estimates, variance estimates, etc.
 
@@ -106,8 +101,7 @@ fit_unimm.unimm <- function(uni_model, l, data, ...) {
 #'
 #' @method fit_unimm unimm_conc
 #' @import lme4
-#' @importFrom stats as.formula AIC BIC model.matrix
-#' @importFrom cAIC4 cAIC
+#' @importFrom stats as.formula model.matrix
 #'
 #' @return a list containing point estimates, variance estimates, etc. Also
 #' contains `ztlist`, a list of transposed `Z` matrices.
@@ -142,7 +136,10 @@ fit_unimm.unimm_conc <- function(uni_model, l, data, ...) {
 
   # Z matrix and random effects table
   if (uni_model$analytic) {
-    res$ztlist <- sapply(lme4::getME(fit_uni, "Ztlist"), function(x) t(x))
+    # AX: Add rowsums for mom == 1 case
+    # colSums
+    # AX: Check that the downstream casting works (e.g., matrix(x, ncol = 1))
+    res$ztlist <- sapply(lme4::getME(fit_uni, "Ztlist"), function(x) colSums(x))
     varcorr_df <- as.data.frame(lme4::VarCorr(fit_uni))
     res$varcorr_df <- varcorr_df[varcorr_df$grp != "Residual", 1:3]
     res$designmat <- stats::model.matrix(fit_uni)
@@ -155,7 +152,7 @@ fit_unimm.unimm_conc <- function(uni_model, l, data, ...) {
 #' Fit and return a univariate mixed model (helper)
 #'
 #' Helper for `fit_unimm`. Detects whether to use `lmer` or `glmer` and returns
-#' the resulting model. Also helpful for producing a dummy model during the
+#' the resulting model. Also helpful for producing a sample model during the
 #' massively univariate step.
 #'
 #' @param formula Model formula.
@@ -195,6 +192,16 @@ unimm_lmer <- function(formula, data, family) {
 #'
 #' Helper for `fit_unimm` that returns various qualities of the univariate fit
 #' produced by `unimm_lmer` (also a helper).
+#'
+#' @param fit_uni An `lme4` object corresponding to the fit at some point on the
+#' functional domain.
+#' @param uni_model A "unimm" class object with parameters of the fit
+#'
+#' @return A list of relevant features of `fit_uni`
+#'
+#' @import lme4
+#' @importFrom cAIC4 cAIC
+#' @importFrom stats residuals AIC BIC
 
 unimm_outs <- function(fit_uni, uni_model) {
   # Fixed effects estimates

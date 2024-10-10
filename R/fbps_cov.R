@@ -1,22 +1,22 @@
 # altered fbps() function from refund to increase GCV speed
 # lambda1 == lambda2 for cov matrices b/c they're symmetric
 fbps_cov <- function(
-    data,
-    subj = NULL,
-    covariates = NULL,
-    knots = 35,
-    knots.option = "equally-spaced",
-    periodicity = c(FALSE,FALSE),
-    p = 3,
-    m = 2,
-    lambda = NULL,
-    selection = "GCV",
-    search.grid = T,
-    search.length = 100,
-    method="L-BFGS-B",
-    lower = -20,
-    upper = 20,
-    control = NULL
+  data,
+  subj = NULL,
+  covariates = NULL,
+  knots = 35,
+  knots.option = "equally-spaced",
+  periodicity = c(FALSE,FALSE),
+  p = 3,
+  m = 2,
+  lambda = NULL,
+  selection = "GCV",
+  search.grid = T,
+  search.length = 100,
+  method="L-BFGS-B",
+  lower = -20,
+  upper = 20,
+  control = NULL
 ) {
 
   # return a smoothed matrix using fbps

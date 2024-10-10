@@ -157,13 +157,16 @@ G_generate.massmm <- function(mum, MoM) {
 #' @importFrom Matrix rowSums
 
 # AX: Add back all_crossterms
-G_generate.massmm_conc <- function(mum, i, j) {
+G_generate.massmm_conc <- function(mum, i, j, MoM = 1) {
 
   # Z_lst is the ZTlist (transposed) output from:
   #   sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )
   # RE_table is a table from VarCorr(X) where X is a lme4 "lmerMod" class object
   # ID is the name of the ID factor (which determines what we can sum across)
   # assumes the names of HHat are generated from this same table in same order
+
+  # Force MoM case
+  MoM <- 1
 
   RE_table <- mum$varcorr_df
   ID <- mum$subj_id

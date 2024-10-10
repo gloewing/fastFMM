@@ -12,9 +12,9 @@
 #'
 #' @return List of final outputs of `fui`
 #'
+#' @import Matrix
 #' @importFrom stats smooth.spline quantile
 #' @importFrom Rfast spdinv rowMaxs
-#' @importFrom Matrix tcrossprod crossprod Diagonal
 #' @importFrom parallel mclapply
 #' @importFrom methods new
 #' @importFrom mvtnorm rmvnorm
@@ -153,8 +153,12 @@ var_analytic <- function(
 
   ## Concatenate vector of 1s to Z because used that way below
   HHat_trim <- NA
+  # AX: Check what qq refers to
+  # AX: rowSums, single entry of ztlist, or entire cbound ztlist?
+  # AX: Z_orig or rowsummed?
+  # AX: Check the structure of HHat and its product with Z
   if (!randintercept) {
-    Z <- mum$ztlist
+    Z <- mum$ztlist[[1]]
     qq <- ncol(Z)
     HHat_trim <- array(NA, c(qq, qq, L)) # array for Hhat
   }
@@ -171,6 +175,12 @@ var_analytic <- function(
 
   # AX: Take this out of the function
   ## Calculate Var(betaTilde) for each location
+  # AX: X[s] and Z[s] for concurrent case
+  # AX: parallel_fn should also be a generic dispatched to nonconcurrent/concurrent
+
+  # AX: separate issue: bug catching in parallel
+  # AX: report failed indices of calculation (e.g., due to non-invertible matrices)
+  # AX: E.g., message, consider removal of terminal points on functional domain
   parallel_fn <- function(s){
     V.subj.inv <- c()
     ## Invert each block matrix, then combine them
@@ -191,6 +201,8 @@ var_analytic <- function(
       subj_ind <- obs.ind[[as.character(id)]]
       subj.ind <- subj_ind
 
+      # AX: Check for compatibility with concurrent case
+      # Check dimensionality of Z[s][subj_ind, , drop = FALSE]
       if (randintercept) {
         Ji <- length(subj_ind)
         V.subj <- matrix(HHat[1, s], nrow = Ji, ncol = Ji) +
@@ -215,9 +227,9 @@ var_analytic <- function(
         ) %*% matrix(1, nrow = Ji, ncol = 1)
       } else {
         XTVinvZ_i[[as.character(id)]] <- crossprod(
-          matrix(designmat[subj.ind,], ncol = p),
+          matrix(designmat[subj.ind, ], ncol = p),
           V.subj.inv
-        ) %*% Z[subj.ind,,drop = FALSE]
+        ) %*% Z[subj.ind, , drop = FALSE]
       }
     }
 
@@ -644,4 +656,423 @@ eigenval_trim <- function(V) {
       )
     )
   }
+}
+
+#' Copy of pspline.setting.R from refund
+#'
+#' A slightly modified copy of [pspline.setting](https://rdrr.io/cran/refund/src/R/pspline.setting.R)
+#' from `refund`. Copied here because the original function is not exported from
+#' the package. Called within `fbps_cov` within `var_analytic`.
+#'
+#' @param x Marginal data points
+#' @param knots The list of interior knots of the numbers of interior knots
+#' @param p Degrees for B-splines, default = 3
+#' @param m Orders of difference penalty, default = 2
+#'
+#' @importFrom splines spline.des
+#' @import Matrix
+
+pspline_setting <- function(
+    x,
+    knots = select_knots(x, 35),
+    p = 3,
+    m = 2,
+    periodicity = FALSE,
+    weight = NULL
+) {
+  ### design matrix
+  K <- length(knots) - 2 * p - 1
+  B <- splines::spline.des(
+    knots = knots,
+    x = x,
+    ord = p + 1,
+    outer.ok = TRUE
+  )$design
+
+  if (periodicity) {
+    Bint <- B[, -c(1:p, K + 1:p)]
+    Bleft <- B[, 1:p]
+    Bright <- B[, K + 1:p]
+    B <- cbind(Bint, Bleft + Bright)
+  }
+
+  # parameter  m: difference order
+  # parameter  p: degree of B-splines
+  # parameter  K: number of interior knots
+  penalize_difference <-function(m, p, K, periodicity = periodicity){
+    c <- rep(0, m + 1)
+
+    for(i in 0:m)
+      c[i + 1] = (-1)^(i + 1) * factorial(m) /
+        (factorial(i) * factorial(m - i))
+
+    if (!periodicity){
+      M <- matrix(0, nrow = K + p - m, ncol = K + p)
+      for(i in 1:(K + p - m)) M[i, i:(i + m)] <- c
+    }
+
+    if (periodicity){
+      M <- matrix(0,nrow = K, ncol = K)
+      for(i in 1:(K - m)) M[i, i:(i + m)] <- c
+      for(i in (K - m + 1):K) M[i, c(i:K, 1:(m - K + i))] <- c
+    }
+
+    return(M)
+  }
+
+  P <- penalize_difference(m, p, K, periodicity)
+  P1 <- Matrix(P)
+  P2 <- Matrix(t(P))
+  P <- P2 %*% P1
+
+  MM <- function(A, s, option = 1){
+    if (option == 2)
+      return(A * (s %*% t(rep(1, dim(A)[2]))))
+    if(option == 1)
+      return(A * (rep(1, dim(A)[1]) %*% t(s)))
+  }
+
+  if(is.null(weight)) weight <- rep(1,length(x))
+
+  B1 <- Matrix(MM(t(B), weight))
+  B <- Matrix(B)
+  Sig <- B1 %*% B
+  eSig <- eigen(Sig)
+  V <- eSig$vectors
+  E <- eSig$values
+
+  if (min(E) <= 0.0000001)
+    E <- E + 0.000001
+
+  Sigi_sqrt = MM(V, 1 / sqrt(E)) %*% t(V)
+  #Sigi = V%*%diag(1/E)%*%t(V)
+
+  tUPU <- Sigi_sqrt %*% (P %*% Sigi_sqrt)
+  Esig <- eigen(tUPU, symmetric = TRUE)
+  U <- Esig$vectors
+  s <- Esig$values
+  if(!periodicity) s[(K + p - m + 1):(K + p)] <- 0
+  if(periodicity) s[K] <- 0
+  A <- B %*% (Sigi_sqrt %*% U)
+
+  return(
+    list(
+      A = A,
+      B = B,
+      s = s,
+      Sigi_sqrt = Sigi_sqrt,
+      U = U,
+      P = P
+    )
+  )
+}
+
+#' Modified refund::fbps for covariance matrices
+#'
+#' Altered to speed up `refund::fbps`. Takes advantage of the symmetry of the
+#' covariance matrix, i.e., lambda1 == lambda2
+#'
+#' @param data Data frame of values to fit
+#' @param subj Character vector of subject IDs, defaults to `NULL`
+#' @param covariates List of data points for each dimension; defaults to `NULL`
+#' @param knots Numeric or list of number of knots or the vector of
+#' knots for each dimension; defaults to 35.
+#' @param knots.option Character knot selection method; defaults to
+#' `"equally-spaced"`
+#' @param p Numeric degrees of B-splines
+#' @param m Numeric order of difference penalty
+#' @param lambda User-selected smoothing parameters; defaults to NULL
+#' @param selection Character selection of smoothing parameter; defaults to
+#' "GCV:
+#' @param search.grid boolean; defaults to `TRUE`. If false, uses `optim`.
+#' @param search.length Integer no. of equidistant (log) smoothing parameters;
+#' defaults to 100.
+#' @param method See `stats::optim`; defaults to `"L-BFGS-B"`
+#' @param lower,upper Numeric bounds for log smoothing parameter; defaults to
+#' `-20, 20`. Passed to `stats::optim`.
+#' @param control See `optim`.
+#'
+#' @return A smoothed matrix
+
+fbps_cov <- function(
+  data,
+  subj = NULL,
+  covariates = NULL,
+  knots = 35,
+  knots.option = "equally-spaced",
+  periodicity = c(FALSE,FALSE),
+  p = 3,
+  m = 2,
+  lambda = NULL,
+  selection = "GCV",
+  search.grid = T,
+  search.length = 100,
+  method="L-BFGS-B",
+  lower = -20,
+  upper = 20,
+  control = NULL
+) {
+
+  ## data dimension
+  data_dim <- dim(data)
+  n1 <- data_dim[1]
+  n2 <- data_dim[2]
+
+  ## subject ID
+  if (is.null(subj)) subj <- 1:n2
+  subj_unique <- unique(subj)
+  I <- length(subj_unique)
+  ## covariates for the two axis
+  if (!is.list(covariates)) {
+    ## if NULL, assume equally distributed
+    x <- (1:n1) / n1 - 1 / 2 / n1
+    z <- (1:n2) / n2 - 1 / 2 / n2
+  }
+  if (is.list(covariates)) {
+
+    x <- covariates[[1]]
+    z <- covariates[[2]]
+  }
+
+  ## B-spline basis setting
+  p1 <- rep(p, 2)[1]
+  p2 <- rep(p, 2)[2]
+  m1 <- rep(m, 2)[1]
+  m2 <- rep(m, 2)[2]
+
+  ## knots
+  if (!is.list(knots)) {
+    K1 <- rep(knots, 2)[1]
+    xknots <- select_knots(x, knots = K1, option = knots.option)
+    K2 <- rep(knots, 2)[2]
+    zknots <- select_knots(z, knots = K2, option = knots.option)
+  }
+
+  if (is.list(knots)) {
+
+    xknots <- knots[[1]]
+    K1 <- length(xknots) - 1
+    knots_left <- 2 * xknots[1] - xknots[p1:1 + 1]
+    knots_right <- 2 * xknots[K1] - xknots[K1 - (1:p1)]
+    xknots <- c(knots_left, xknots, knots_right)
+
+    zknots<- knots[[2]]
+    K2 <- length(zknots)-1
+    knots_left <- 2*zknots[1]- zknots[p2:1+1]
+    knots_right <- 2*zknots[K2] - zknots[K2-(1:p2)]
+    zknots <- c(knots_left,zknots,knots_right)
+  }
+
+  Y = data
+
+  # 1 Precalculation for fbps smoothing ########################################
+
+  List <- pspline_setting(x, xknots, p1, m1, periodicity[1])
+  A1 <- List$A
+  B1 <- List$B
+  Bt1 <- Matrix(t(as.matrix(B1)))
+  s1 <- List$s
+  Sigi1_sqrt <- List$Sigi_sqrt
+  U1 <- List$U
+  A01 <- Sigi1_sqrt%*%U1
+  c1 <- length(s1)
+
+  List <- pspline_setting(z, zknots, p2, m2, periodicity[2])
+  A2 <- List$A
+  B2 <- List$B
+  Bt2 <- Matrix(t(as.matrix(B2)))
+  s2 <- List$s
+  Sigi2_sqrt <- List$Sigi_sqrt
+  U2 <- List$U
+  A02 <- Sigi2_sqrt%*%U2
+  c2 <- length(s2)
+
+  # 2 Select optimal penalty ###################################################
+
+  # Trace of square matrix
+  tr <-function(A)
+    return(sum(diag(A)))
+
+  Ytilde <- Bt1 %*% (Y %*% B2)
+  Ytilde <- t(A01) %*% Ytilde %*% A02
+  Y_sum <- sum(Y^2)
+  ytilde <- as.vector(Ytilde)
+
+  if (selection=="iGCV") {
+    KH <- function(A,B) {
+      C <- matrix(0, dim(A)[1], dim(A)[2] * dim(B)[2])
+      for(i in 1:dim(A)[1])
+        C[i, ] <- Matrix::kronecker(A[i, ], B[i, ])
+      return(C)
+    }
+    G <- rep(0, I)
+    Ybar <- matrix(0, c1, I)
+    C <- matrix(0, c2, I)
+
+    Y2 <- Bt1%*%Y
+    Y2 <- matrix(t(A01) %*% Y2, c1, n2)
+
+    for(i in 1:I) {
+      sel <- (1:n2)[subj == subj_unique[i]]
+      len <- length(sel)
+      G[i] <- len
+      Ybar[, i] <- as.vector(matrix(Y2[, sel], ncol = len) %*% rep(1, len))
+      C[, i] <- as.vector(t(matrix(A2[sel, ], nrow=len)) %*% rep(1, len))
+    }
+
+    g1 <- diag(Ybar %*% diag(G) %*% t(Ybar))
+    g2 <- diag(Ybar %*% t(Ybar))
+    g3 <- ytilde * as.vector(Ybar %*% diag(G) %*% t(C))
+    g4 <- ytilde * as.vector(Ybar %*% t(C))
+    g5 <- diag(C %*% diag(G) %*% t(C))
+    g6 <- diag(C %*% t(C))
+    #cat("Processing completed\n")
+  }
+
+  fbps_gcv =function(x) {
+
+    lambda <- exp(x)
+    ## two lambda's are the same
+    if (length(lambda)==1)
+    {
+      lambda1 <- lambda
+      lambda2 <- lambda
+    }
+    ## two lambda's are different
+    if (length(lambda)==2) {
+      lambda1 <- lambda[1]
+      lambda2 <- lambda[2]
+    }
+
+    sigma2 <- 1 / (1 + lambda2 * s2)
+    sigma1 <- 1 / (1 + lambda1 * s1)
+    sigma2_sum <- sum(sigma2)
+    sigma1_sum <- sum(sigma1)
+    sigma <- Matrix::kronecker(sigma2, sigma1)
+    sigma.2 <- Matrix::kronecker(sqrt(sigma2), sqrt(sigma1))
+
+    if (selection=="iGCV") {
+      d <- 1 / (1 - (1 + lambda1 * s1) / sigma2_sum * n2)
+      gcv <- sum((ytilde*sigma)^2) - 2 * sum((ytilde * sigma.2)^2)
+      gcv <- gcv + sum(d^2 * g1) - 2 * sum(d * g2)
+      gcv <- gcv - 2 * sum(g3 * Matrix::kronecker(sigma2, sigma1 * d^2))
+      gcv <- gcv + 4 * sum(g4 * Matrix::kronecker(sigma2, sigma1 * d))
+      gcv <- gcv +
+        sum(ytilde^2 * Matrix::kronecker(sigma2^2 * g5, sigma1^2 * d^2))
+      gcv <- gcv -
+        2 * sum(ytilde^2 * Matrix::kronecker(sigma2^2 * g6, sigma1^2 * d))
+    }
+
+    if (selection=="GCV") {
+      gcv <- sum((ytilde * sigma)^2) - 2 * sum((ytilde * sigma.2)^2)
+      gcv <- Y_sum + gcv
+      trc <- sigma2_sum*sigma1_sum
+      gcv <- gcv / (1 - trc / (n1 * n2))^2
+    }
+    return(gcv)
+  }
+
+  fbps_est <- function(x) {
+
+    lambda <- exp(x)
+    ## two lambda's are the same
+    if (length(lambda) == 1){
+      lambda1 <- lambda
+      lambda2 <- lambda
+    }
+    ## two lambda's are different
+    if (length(lambda) ==2){
+      lambda1 <- lambda[1]
+      lambda2 <- lambda[2]
+    }
+
+    sigma2 <- 1 / (1 + lambda2 * s2)
+    sigma1 <- 1 / (1 + lambda1 * s1)
+    sigma2_sum <- sum(sigma2)
+    sigma1_sum <- sum(sigma1)
+    sigma <- Matrix::kronecker(sigma2, sigma1)
+    sigma.2 <- Matrix::kronecker(sqrt(sigma2), sqrt(sigma1))
+
+    Theta <- A01 %*% diag(sigma1) %*% Ytilde
+    Theta <- as.matrix(Theta %*% diag(sigma2) %*% t(A02))
+    Yhat <- as.matrix(as.matrix(B1 %*% Theta) %*% Bt2)
+
+    result <- list(
+      lambda = c(lambda1, lambda2),
+      Yhat = Yhat,
+      Theta = Theta,
+      setting = list(
+        x = list(
+          knots = xknots,
+          p = p1,
+          m = m1
+        ),
+        z = list(
+          knots = zknots,
+          p = p2,
+          m = m2
+        )
+      )
+    )
+    class(result) <- "fbps"
+    return(result)
+  }
+
+  if (is.null(lambda)) {
+
+    if (search.grid == T) {
+      lower2 <- lower1 <- lower[1]
+      upper2 <- upper1 <- upper[1]
+      search.length2 <- search.length1 <- search.length[1]
+      if (length(lower) == 2) lower2 <- lower[2]
+      if (length(upper) == 2) upper2 <- upper[2]
+      if (length(search.length) == 2) search.length2 <- search.length[2]
+
+      Lambda1 <- seq(lower1,upper1,length = search.length1)
+      lambda.length1 <- length(Lambda1)
+
+      GCV = rep(0, lambda.length1)
+      for(j in 1:lambda.length1) {
+        GCV[j] <- fbps_gcv(c(Lambda1[j], Lambda1[j]))
+      }
+
+      location <- which.min(GCV)[1]
+      j0 <- location%%lambda.length1
+      if (j0 == 0) j0 <- lambda.length1
+      k0 <- (location-j0) / lambda.length1 + 1
+      lambda <- exp(c(Lambda1[j0], Lambda1[j0]))
+    } ## end of search.grid
+
+    if (search.grid == F) {
+      fit <- stats::optim(
+        0,
+        fbps_gcv,
+        method = method,
+        control = control,
+        lower = lower[1],
+        upper = upper[1]
+      )
+
+      fit <- stats::optim(
+        c(fit$par, fit$par),
+        fbps_gcv,
+        method = method,
+        control = control,
+        lower = lower[1],
+        upper = upper[1]
+      )
+      if (fit$convergence>0) {
+        expression <- paste(
+          "Smoothing failed! The code is:",
+          fit$convergence
+        )
+        print(expression)
+      }
+      lambda <- exp(fit$par)
+    } ## end of optim
+
+  } ## end of finding smoothing parameters
+  lambda = rep(lambda, 2)[1:2]
+
+  return(fbps_est(log(lambda)))
 }

@@ -16,13 +16,14 @@ massmm <- function(uni_model, ...) {
 #'
 #' Fits separate models over the functional domain.
 #'
+#' @method massmm unimm
 #' @param uni_model Object of "unimm" class or its inheritors.
 #' @param argvals Integer vector of locations to fit univariate models.
-#' @param data Data frame to fit.
-#' @param parallel Boolean, taken from `fui` arguments.
+#' @param data Data frame to fit, passed from `fui`.
+#' @param parallel Boolean, passed from `fui`.
 #' @param num_cores Number of cores for parallelization. Defaults to 1.
 #'
-#' @return A list of outputs from `fit_unimm`.
+#' @return A list containing results from the massive univariate step.
 #'
 #' @importFrom lme4 VarCorr getME
 #' @importFrom stats model.matrix
@@ -30,7 +31,8 @@ massmm <- function(uni_model, ...) {
 massmm.unimm <- function(uni_model, argvals, data, parallel) {
   # Generate the univariate fits
   mass_list <- massmm_apply(uni_model, argvals, data, parallel, num_cores)
-  res <- massmm_outs(mass_list, uni_model)
+  res <- massmm_outs(mass_list)
+  res$analytic <- uni_model$analytic
 
   # If not analytic, stop here
   if (!uni_model$analytic) {
@@ -46,7 +48,7 @@ massmm.unimm <- function(uni_model, argvals, data, parallel) {
     which(rownames(var_random) != "var.Residual"), , drop = FALSE
   ]
 
-  # Collect random effects
+  # Returnrandom effects
   randeffs <- NULL
   if (uni_model$REs) {
     randeffs <- suppressMessages(
@@ -59,7 +61,7 @@ massmm.unimm <- function(uni_model, argvals, data, parallel) {
     )
   }
 
-  # Fit a fake model to obtain a design matrix
+  # Fit a sample model at an arbitrary point to obtain a design matrix
   data$Yl <- unclass(data[, out_index][, 1]) # arbitrary index
   fit_uni <- unimm_lmer(
     as.formula(paste0("Yl ~ ", model_formula[3])), data, uni_model$family
@@ -120,10 +122,11 @@ massmm.unimm <- function(uni_model, argvals, data, parallel) {
 #'
 #' Fits separate models over the functional domain for concurrent models.
 #'
+#' @method massmm unimm_conc
 #' @param uni_model Object of "unimm" class or its inheritors.
 #' @param argvals Integer vector of locations to fit univariate models.
-#' @param data Data frame to fit.
-#' @param parallel Boolean, taken from `fui` arguments.
+#' @param data Data frame to fit, passed from `fui`.
+#' @param parallel Boolean, passed from `fui`.
 #' @param num_cores Number of cores for parallelization. Defaults to 1.
 #'
 #' @return A list of outputs from `fit_unimm`.
@@ -134,7 +137,8 @@ massmm.unimm <- function(uni_model, argvals, data, parallel) {
 massmm.unimm_conc <- function(uni_model, argvals, data, parallel) {
   # Generate the univariate fits
   mass_list <- massmm_apply(uni_model, argvals, data, parallel, num_cores)
-  res <- massmm_outs(mass_list, uni_model)
+  res <- massmm_outs(mass_list)
+  res$analytic <- uni_model$analytic
 
   # If not analytic, stop here
   if (!uni_model$analytic) {
@@ -200,8 +204,8 @@ massmm.unimm_conc <- function(uni_model, argvals, data, parallel) {
     var_random = var_random,
     varcorr_df = varcorr_df,
     randeffs = randeffs,
-    ztlist = ztlist,
-    designmat = designmat,
+    ztlist = ztlist, # List of length L
+    designmat = designmat, # List of length L
     group = group,
     subj_id = subj_id,
     randintercept = randintercept,
@@ -285,11 +289,10 @@ massmm_apply <- function(uni_model, argvals, data, parallel, num_cores = 1) {
 #' Helper function that returns basic outputs from `massmm_apply`.
 #'
 #' @param massmm_list The output from `massmm_apply`
-#' @param uni_model A "unimm" object with model parameters.
 #'
 #' @return A list of betaTilde, the AIC matrix, and residuals (if applicable).
 
-massmm_outs <- function(massmm_list, uni_model) {
+massmm_outs <- function(massmm_list) {
   # Obtain betaTilde, fixed effects estimates
   betaTilde <- t(do.call(rbind, lapply(mass_list, '[[', 1)))
   colnames(betaTilde) <- argvals
@@ -300,6 +303,9 @@ massmm_outs <- function(massmm_list, uni_model) {
   mod_caic <- do.call(c, lapply(mass_list, '[[', 'caic'))
   AIC_mat <- cbind(mod_aic, mod_bic, mod_caic)
   colnames(AIC_mat) <- c("AIC", "BIC", "cAIC")
+
+  # Allows for smoothing and return of HHat later
+  # var_random <- t(do.call(rbind, lapply(mass_list, '[[', 'var_random')))
 
   # Store residuals if resids == TRUE
   resids <- NA
@@ -312,8 +318,7 @@ massmm_outs <- function(massmm_list, uni_model) {
     list(
       betaTilde = betaTilde,
       AIC_mat = AIC_mat,
-      resids = resids,
-      analytic = uni_model$analytic
+      resids = resids
     )
   )
 }

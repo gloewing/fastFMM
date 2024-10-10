@@ -258,6 +258,7 @@ fui <- function(
     x_names,
     function(x) length(grep(paste0("^", x), names(data)))
   )
+  func_covs <- NULL # Redundacy for clarity
   func_covs <- unique(c(x_names[x_classes == "AsIs"], x_names[x_ncols == L]))
 
   # Check for inconsistencies between concurrence arg and functional covariates
@@ -326,6 +327,7 @@ fui <- function(
     caic = caic,
     REs = REs,
     analytic = analytic,
+    concurrent = concurrent,
     func_covs = func_covs
   )
 
@@ -398,6 +400,7 @@ fui <- function(
         )
       )
     }
+    # Add additional return of smoothed HHat
     return(list(betaHat = betaHat, argvals = argvals, aic = mum$AIC_mat))
   }
 
