@@ -1,14 +1,14 @@
 #' Generic "massmm" model fit
 #'
-#' Fits the model over the functional domain. The function `fit_unimm` is
-#' dispatched based on the `uni` object class.
+#' Fits the model over the functional domain based on the object class.
 #'
-#' @param uni_model An object that is or inherits from the "unimm" class.
+#' @param fmm An object that is or inherits from the "fastFMM" class.
 #' @param ... Additional arguments.
 #'
 #' @return Results depends on the dispatched method.
+#' @export
 
-massmm <- function(uni_model, ...) {
+massmm <- function(fmm, ...) {
   UseMethod("massmm")
 }
 
@@ -16,41 +16,38 @@ massmm <- function(uni_model, ...) {
 #'
 #' Fits separate models over the functional domain.
 #'
-#' @method massmm unimm
-#' @param uni_model Object of "unimm" class or its inheritors.
-#' @param argvals Integer vector of locations to fit univariate models.
-#' @param data Data frame to fit, passed from `fui`.
+#' @method massmm fastFMM
+#' @param fmm Object of "fastFMM" class or its inheritors.
 #' @param parallel Boolean, passed from `fui`.
-#' @param num_cores Number of cores for parallelization. Defaults to 1.
+#' @param n_cores Number of cores for parallelization. Defaults to 1.
 #'
 #' @return A list containing results from the massive univariate step.
 #'
 #' @importFrom lme4 VarCorr getME
 #' @importFrom stats model.matrix
+#' @importFrom Matrix t
+#' @export
 
-massmm.unimm <- function(uni_model, argvals, data, parallel) {
+massmm.fastFMM <- function(fmm, parallel, n_cores) {
   # Generate the univariate fits
-  mass_list <- massmm_apply(uni_model, argvals, data, parallel, num_cores)
-  res <- massmm_outs(mass_list)
-  res$analytic <- uni_model$analytic
+  mass_list <- massmm_apply(fmm, parallel, n_cores)
+  res <- massmm_outs(mass_list, fmm)
+  res$analytic <- fmm$analytic
 
   # If not analytic, stop here
-  if (!uni_model$analytic) {
-    class(res) <- "massmm"
+  if (!fmm$analytic)
     return(res)
-  }
 
-  # If analytic, add additonal outputs for variance estimation
-  var_random <- t(do.call(rbind, lapply(mass_list, '[[', 'var_random')))
+  var_random <- res$var_random
   se_mat <- suppressMessages(do.call(cbind, lapply(mass_list, '[[', 'se_mat')))
   sigmaesqHat <- var_random["var.Residual", , drop = FALSE]
-  sigmausqHat <- var_random[
-    which(rownames(var_random) != "var.Residual"), , drop = FALSE
-  ]
+  # sigmausqHat <- var_random[
+  #   which(rownames(var_random) != "var.Residual"), , drop = FALSE
+  # ]
 
-  # Returnrandom effects
+  # Return random effects
   randeffs <- NULL
-  if (uni_model$REs) {
+  if (fmm$randeffs) {
     randeffs <- suppressMessages(
       simplify2array(
         lapply(
@@ -62,20 +59,24 @@ massmm.unimm <- function(uni_model, argvals, data, parallel) {
   }
 
   # Fit a sample model at an arbitrary point to obtain a design matrix
+  data <- fmm$data
+  form <- as.character(fmm$formula)
+  out_index <- grep(paste0("^", form[2]), names(data))
   data$Yl <- unclass(data[, out_index][, 1]) # arbitrary index
   fit_uni <- unimm_lmer(
-    as.formula(paste0("Yl ~ ", model_formula[3])), data, uni_model$family
+    as.formula(paste0("Yl ~ ", form[3])), data, fmm$family
   )
   designmat <- stats::model.matrix(fit_uni)
 
   # Names of random effects
   varcorr_df <- as.data.frame(lme4::VarCorr(fit_uni))
   varcorr_df <- varcorr_df[varcorr_df$grp != "Residual", 1:3]
-  ztlist <- sapply(lme4::getME(fit_uni, "Ztlist"), t)
+  ztlist <- sapply(lme4::getME(fit_uni, "Ztlist"), Matrix::t)
 
   # Check if group contains ":" (hierarchical structure) that requires the
   # group to be specified
   group <- mass_list[[1]]$group ## group name in the data
+  subj_id <- fmm$subj_id
   if (grepl(":", group, fixed = TRUE)) {
     if (is.null(subj_id)) {
       # Assumes the ID name is to the right of the ":"
@@ -94,6 +95,107 @@ massmm.unimm <- function(uni_model, argvals, data, parallel) {
     length(fit_uni@cnms) == 1 &
       length(fit_uni@cnms[[group]]) == 1 &
       fit_uni@cnms[[group]][1] == "(Intercept)"
+  )
+
+  # Check for what needs to be returned
+  # This will get passed to smoothing
+  res_analytic <- list(
+    sigmaesqHat = sigmaesqHat,
+    sigmausqHat = res$sigmausqHat,
+    se_mat = se_mat,
+    var_random = var_random,
+    varcorr_df = varcorr_df,
+    randeffs = randeffs,
+    ztlist = ztlist,
+    designmat = designmat,
+    group = group,
+    subj_id = subj_id,
+    randintercept = randintercept,
+    out_index = out_index
+  )
+  res <- c(res, res_analytic)
+  return(res)
+}
+
+#' Massively univariate concurrent fit
+#'
+#' Fits separate models over the functional domain for concurrent models.
+#'
+#' @method massmm fastFMMconc
+#' @param fmm Object of "fastFMM" class or its inheritors.
+#' @param parallel Boolean, passed from `fui`.
+#' @param n_cores Number of cores for parallelization. Defaults to 1.
+#'
+#' @return A list of outputs from `unimm`.
+#'
+#' @importFrom lme4 VarCorr getME
+#' @importFrom stats model.matrix
+#' @export
+
+massmm.fastFMMconc <- function(fmm, parallel, n_cores) {
+  # Generate the univariate fits
+  mass_list <- massmm_apply(fmm, parallel, n_cores)
+  res <- massmm_outs(mass_list, fmm)
+  res$analytic <- fmm$analytic
+
+  # If not analytic, stop here
+  if (!fmm$analytic)
+    return(res)
+
+  # If analytic, add outputs for variance estimation
+  var_random <- res$var_random
+  sigmausqHat <- res$sigmausqHat
+  se_mat <- suppressMessages(do.call(cbind, lapply(mass_list, '[[', 'se_mat')))
+  sigmaesqHat <- var_random["var.Residual", , drop = FALSE]
+  # sigmausqHat <- var_random[
+  #   which(rownames(var_random) != "var.Residual"), , drop = FALSE
+  # ]
+
+  # Collect random effects
+  randeffs <- NULL
+  if (fmm$randeffs) {
+    randeffs <- suppressMessages(
+      simplify2array(
+        lapply(
+          lapply(massmm, '[[', 'randeffs'),
+          function(x) as.matrix(x[[1]])
+        )
+      )
+    )
+  }
+
+  # Names of random effects
+  varcorr_df <- lapply(mass_list, "[[", "varcorr_df")
+  ztlist <- lapply(mass_list, "[[", "ztlist")
+  designmat <- lapply(mass_list, "[[", "designmat")
+
+  # Check if group contains ":" (hierarchical structure) that requires the
+  # group to be specified
+  group <- mass_list[[1]]$group ## group name in the data
+  subj_id <- fmm$subj_id
+  if (grepl(":", group, fixed = TRUE)) {
+    if (is.null(subj_id)) {
+      # Assumes the ID name is to the right of the ":"
+      group <- sub(".*:", "", group)
+    } else {
+      # Use user-specified ID if it exists
+      group <- subj_id
+    }
+  }
+
+  if (is.null(subj_id))
+    subj_id <- group
+
+  # Condition for using G_estimate_randint
+  # AX: There's gotta be an easier way to do this
+  # randintercept <- I(
+  #   length(fit_uni@cnms) == 1 &
+  #     length(fit_uni@cnms[[group]]) == 1 &
+  #     fit_uni@cnms[[group]][1] == "(Intercept)"
+  # )
+  randintercept <- I(
+    nrow(mass_list[[1]][["varcorr_df"]]) == 1 &
+      mass_list[[1]][["varcorr_df"]][1, "var1"] == "(Intercept)"
   )
 
   # Check for what needs to be returned
@@ -110,138 +212,34 @@ massmm.unimm <- function(uni_model, argvals, data, parallel) {
     group = group,
     subj_id = subj_id,
     randintercept = randintercept,
-    argvals = argvals,
     out_index = out_index
   )
+
   res <- c(res, res_analytic)
-  class(res) <- "massmm"
-  return(res)
-}
-
-#' Massively univariate concurrent fit
-#'
-#' Fits separate models over the functional domain for concurrent models.
-#'
-#' @method massmm unimm_conc
-#' @param uni_model Object of "unimm" class or its inheritors.
-#' @param argvals Integer vector of locations to fit univariate models.
-#' @param data Data frame to fit, passed from `fui`.
-#' @param parallel Boolean, passed from `fui`.
-#' @param num_cores Number of cores for parallelization. Defaults to 1.
-#'
-#' @return A list of outputs from `fit_unimm`.
-#'
-#' @importFrom lme4 VarCorr getME
-#' @importFrom stats model.matrix
-
-massmm.unimm_conc <- function(uni_model, argvals, data, parallel) {
-  # Generate the univariate fits
-  mass_list <- massmm_apply(uni_model, argvals, data, parallel, num_cores)
-  res <- massmm_outs(mass_list)
-  res$analytic <- uni_model$analytic
-
-  # If not analytic, stop here
-  if (!uni_model$analytic) {
-    class(res) <- "massmm_conc"
-    return(res)
-  }
-
-  # If analytic, add outputs for variance estimation
-  var_random <- t(do.call(rbind, lapply(mass_list, '[[', 'var_random')))
-  se_mat <- suppressMessages(do.call(cbind, lapply(mass_list, '[[', 'se_mat')))
-  sigmaesqHat <- var_random["var.Residual", , drop = FALSE]
-  sigmausqHat <- var_random[
-    which(rownames(var_random) != "var.Residual"), , drop = FALSE
-  ]
-
-  # Collect random effects
-  randeffs <- NULL
-  if (uni_model$REs) {
-    randeffs <- suppressMessages(
-      simplify2array(
-        lapply(
-          lapply(massmm, '[[', 'randeffs'),
-          function(x) as.matrix(x[[1]])
-        )
-      )
-    )
-  }
-
-  # Names of random effects
-  varcorr_df <- lapply(mass_list, "[[", "varcorr_df")
-  ztlist <- lapply(mass_list, "[[", "ztlist")
-  ztlist <- lapply(mass_list, "[[", "designmat")
-
-  # Check if group contains ":" (hierarchical structure) that requires the
-  # group to be specified
-  group <- mass_list[[1]]$group ## group name in the data
-  if (grepl(":", group, fixed = TRUE)) {
-    if (is.null(subj_id)) {
-      # Assumes the ID name is to the right of the ":"
-      group <- sub(".*:", "", group)
-    } else {
-      # Use user-specified ID if it exists
-      group <- subj_id
-    }
-  }
-
-  if (is.null(subj_id))
-    subj_id <- group
-
-  # Condition for using G_estimate_randint
-  randintercept <- I(
-    length(fit_uni@cnms) == 1 &
-      length(fit_uni@cnms[[group]]) == 1 &
-      fit_uni@cnms[[group]][1] == "(Intercept)"
-  )
-
-  # Check for what needs to be returned
-  # This will get passed to smoothing
-  res_analytic <- list(
-    sigmaesqHat = sigmaesqHat,
-    sigmausqHat = sigmausqHat,
-    se_mat = se_mat,
-    var_random = var_random,
-    varcorr_df = varcorr_df,
-    randeffs = randeffs,
-    ztlist = ztlist, # List of length L
-    designmat = designmat, # List of length L
-    group = group,
-    subj_id = subj_id,
-    randintercept = randintercept,
-    argvals = argvals,
-    out_index = out_index
-  )
-  # Manually set this to false due to lack of shortcut coded
-  res_analytic$randintercept <- FALSE
-  res <- c(res, res_analytic)
-  class(res) <- "massmm_conc"
   return(res)
 }
 
 #' Massively univariate parallelization helper
 #'
 #' A helper function that handles the parallelization of the model fitting.
-#' Helps to clean up the code of `fit_massmm` executions. Dispatches `fit_unimm`
+#' Helps to clean up the code of `massmm` executions. Dispatches `unimm`
 #' based on the class of the provided univariate model object.
 #'
-#' @param uni_model Object of "unimm" class or its inheritors.
-#' @param argvals Numeric vector of locations to fit univariate models.
-#' @param data Data frame to fit.
+#' @param fmm Object of "fastFMM" class or its inheritors.
 #' @param parallel Boolean, taken from `fui` arguments.
-#' @param num_cores Number of cores for parallelization. Defaults to 1.
+#' @param n_cores Number of cores for parallelization. Defaults to 1.
 #'
 #' @importFrom parallel mclapply makePSOCKcluster parLapply
 #'
 #' @return A list of fitted univariate models.
+#' @export
 
-massmm_apply <- function(uni_model, argvals, data, parallel, num_cores = 1) {
+massmm_apply <- function(fmm, parallel, n_cores = 1) {
   if (!parallel) {
     res <- lapply(
-      argvals,
-      fit_unimm,
-      data = data,
-      obj = uni_model
+      fmm$argvals,
+      unimm,
+      fmm = fmm
     )
     return(res)
   }
@@ -249,25 +247,23 @@ massmm_apply <- function(uni_model, argvals, data, parallel, num_cores = 1) {
   # Windows is not currently compatible with mclapply
   if (.Platform$OS.type != "windows") {
     res <- parallel::mclapply(
-      argvals,
-      fit_unimm,
-      data = data,
-      obj = uni_model,
-      mc.cores = num_cores
+      fmm$argvals,
+      unimm,
+      fmm = fmm,
+      mc.cores = n_cores
     )
     return(res)
   }
 
   # Windows-only parallelization
   # To prevent the cluster from persisting after failure, we use tryCatch
-  cl <- parallel::makePSOCKcluster(num_cores)
+  cl <- parallel::makePSOCKcluster(n_cores)
   res <- tryCatch(
     parLapply(
       cl = cl,
-      X = argvals,
-      fun = fit_unimm,
-      data = data,
-      obj = uni_model
+      X = fmm$argvals,
+      fun = unimm,
+      fmm = fmm
     ),
     warning = function(w) {
       print(paste0("Warning in parallelization of univariate fits:", "\n", w))
@@ -288,12 +284,15 @@ massmm_apply <- function(uni_model, argvals, data, parallel, num_cores = 1) {
 #'
 #' Helper function that returns basic outputs from `massmm_apply`.
 #'
-#' @param massmm_list The output from `massmm_apply`
+#' @param mass_list The output from `massmm_apply`
+#' @param fmm Object of class "fastFMM" with parameters for model fitting.
 #'
 #' @return A list of betaTilde, the AIC matrix, and residuals (if applicable).
+#' @export
 
-massmm_outs <- function(massmm_list) {
+massmm_outs <- function(mass_list, fmm) {
   # Obtain betaTilde, fixed effects estimates
+  argvals <- fmm$argvals
   betaTilde <- t(do.call(rbind, lapply(mass_list, '[[', 1)))
   colnames(betaTilde) <- argvals
 
@@ -304,21 +303,35 @@ massmm_outs <- function(massmm_list) {
   AIC_mat <- cbind(mod_aic, mod_bic, mod_caic)
   colnames(AIC_mat) <- c("AIC", "BIC", "cAIC")
 
-  # Allows for smoothing and return of HHat later
-  # var_random <- t(do.call(rbind, lapply(mass_list, '[[', 'var_random')))
-
   # Store residuals if resids == TRUE
   resids <- NA
-  if (uni_model$residuals)
+  if (fmm$residuals)
     resids <- suppressMessages(
       do.call(cbind, lapply(mass_list, '[[', 'residuals'))
     )
+
+  # Add smoothed coefficients
+  # If analytic, add outputs for variance estimation
+  var_random <- t(do.call(rbind, lapply(mass_list, '[[', 'var_random')))
+  sigmausqHat <- var_random[
+    which(rownames(var_random) != "var.Residual"), , drop = FALSE
+  ]
+  # HHat <- t(
+  #   apply(
+  #     sigmausqHat, 1,
+  #     function(b) stats::smooth.spline(x = argvals, y = b)$y
+  #   )
+  # )
+  # ind_var <- which(grepl("var", rownames(HHat)) == TRUE)
+  # HHat[ind_var, ][which(HHat[ind_var, ] < 0)] <- 0
 
   return(
     list(
       betaTilde = betaTilde,
       AIC_mat = AIC_mat,
-      resids = resids
+      residuals = resids,
+      var_random = var_random,
+      sigmausqHat = sigmausqHat
     )
   )
 }

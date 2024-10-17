@@ -3,7 +3,8 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 rebuild\.R
-fui_conc\.Rmd
 rebuild\.Rmd
+rebuild_exports\.Rmd
+fui_conc\.Rmd
 ^\.gitignore$
 ^\.github/

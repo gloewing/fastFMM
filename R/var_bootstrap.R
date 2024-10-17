@@ -1,23 +1,65 @@
-var_bootstrap <- function() {
+#' Analytic variance calculation
+#'
+#' Helper for `fui`. Bootstrapped variance calculation.
+#'
+#' @param mum Massively univariate model output of class "massmm"
+#' @param umm Univariate mixed model setup of class "unimm"
+#' @param nknots_min Integer passed from `fui`.
+#' @param nknots_min_cov Integer passed from `fui`.
+#' @param betaHat Numeric matrix of smoothed coefficients
+#' @param data Data frame of values to fit
+#' @param L integer, number of points on functional domain
+#' @param num_boots Integer, number of bootstrap replications.
+#' @param parallel Logical, whether to use parallel processing
+#' @param num_cores Integer, number of cores for parallelization.
+#' @param smooth_method Character, passed from `fui`
+#' @param splines Character, passed from `fui`
+#' @param silent Logical, suppresses messages when `TRUE`. Passed from `fui`.
+#'
+#' @return List of final outputs of `fui`
+#'
+#' @import Matrix
+#' @importFrom stats smooth.spline quantile
+#' @importFrom Rfast spdinv rowMaxs
+#' @importFrom parallel mclapply
+#' @importFrom methods new
+#' @importFrom mvtnorm rmvnorm
 
-  # 3.2 Bootstrap inference ##################################################
+var_bootstrap <- function(
+  mum,
+  umm,
+  nknots_min,
+  nknots_min_cov,
+  betaHat,
+  data,
+  L,
+  num_boots,
+  parallel,
+  num_cores,
+  smooth_method,
+  splines,
+  silent
+) {
 
   if (!silent) print("Step 3: Inference (Bootstrap)")
 
   # Check to see if group contains ":" which indicates hierarchical structure
   # and group needs to be specified
-  group <- mass_list[[1]]$group
+  group <- mum$group
+  subj_id <- mum$subj_id
+  argvals <- mum$argvals
+
   if (grepl(":", group, fixed = TRUE)) {
     if (is.null(subj_id)) {
       # assumes the ID name is to the right of the ":"
       group <- str_remove(group, ".*:")
-    }else if (!is.null(subj_id)) {
+    } else if (!is.null(subj_id)) {
       group <- subj_id # use user specified if it exists
     } else {
       message("You must specify the argument: ID")
     }
   }
-  ID.number <- unique(data[,group])
+  ID.number <- unique(data[, group])
   idx_perm <- t(
     replicate(
       num_boots,
@@ -27,6 +69,7 @@ var_bootstrap <- function() {
   B <- num_boots
   betaHat_boot <- array(NA, dim = c(nrow(betaHat), ncol(betaHat), B))
 
+  family <- umm$family
   if (is.null(boot_type)) {
     # default bootstrap type if not specified
     if (family == "gaussian") {
@@ -57,7 +100,7 @@ var_bootstrap <- function() {
       sample.ind <- idx_perm[boots,]
       dat.ind <- new_ids <- vector(length = length(sample.ind), "list")
       for(ii in 1:length(sample.ind)) {
-        dat.ind[[ii]] <- which(data[,group] == ID.number[sample.ind[ii]])
+        dat.ind[[ii]] <- which(data[, group] == ID.number[sample.ind[ii]])
         # subj_b is now the pseudo_id
         new_ids[[ii]] <- rep(ii, length(dat.ind[[ii]]))
       }
@@ -67,9 +110,9 @@ var_bootstrap <- function() {
       df2[,subj_id] <- new_ids # replace old IDs with new IDs
 
       fit_boot <- fui(
-        formula = formula,
+        formula = umm$formula,
         data = df2,
-        family = family,
+        family = umm$family,
         argvals = argvals,
         var = FALSE,
         parallel = FALSE,
@@ -78,13 +121,13 @@ var_bootstrap <- function() {
         nknots_min_cov = nknots_min_cov,
         smooth_method = smooth_method,
         splines = splines,
-        residuals = residuals,
-        subj_id = subj_id,
+        residuals = umm$residuals,
+        subj_id = mum$subj_id,
         num_cores = num_cores,
         REs = FALSE
       )
 
-      betaHat_boot[,,boots] <- fit_boot$betaHat
+      betaHat_boot[, , boots] <- fit_boot$betaHat
     }
     rm(fit_boot, df2, dat.ind, new_ids)
   } else {
@@ -97,7 +140,9 @@ var_bootstrap <- function() {
       NA, dim = c(nrow(betaHat), ncol(betaHat), B)
     )
     # , as.character(boot_type)
-    if (!silent)   print("Step 3.1: Bootstrap resampling-")
+    if (!silent)
+      print("Step 3.1: Bootstrap resampling-")
+
     pb <- progress_bar$new(total = L)
     for(l in 1:L) {
       pb$tick()
@@ -178,14 +223,15 @@ var_bootstrap <- function() {
   }
 
   # Obtain bootstrap variance
-  betaHat.var <- array(NA, dim = c(L,L,nrow(betaHat)))
+  betaHat.var <- array(NA, dim = c(L, L, nrow(betaHat)))
   ## account for within-subject correlation
   for(r in 1:nrow(betaHat)) {
-    betaHat.var[,,r] <- 1.2*var(t(betaHat_boot[r,,]))
+    betaHat.var[,,r] <- 1.2 * var(t(betaHat_boot[r, , ]))
   }
 
   # Obtain qn to construct joint CI using the fast approach
-  if (!silent)   print("Step 3.3")
+  if (!silent)
+    print("Step 3.3: Joint confidence interval construction")
   qn <- rep(0, length = nrow(betaHat))
   ## sample size in simulation-based approach
   N <- 10000
@@ -224,7 +270,7 @@ var_bootstrap <- function() {
     x_mean <- colMeans(est_bs)
     un <- rep(NA, N)
     for(j in 1:N) {
-      un[j] <- max(abs((x_sample[j,] - x_mean) / Sigma_sd))
+      un[j] <- max(abs((x_sample[j, ] - x_mean) / Sigma_sd))
     }
     qn[i] <- stats::quantile(un, 0.95)
   }

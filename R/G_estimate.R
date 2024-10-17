@@ -1,15 +1,16 @@
 #' Generic "G_estimate" dispatch
 #'
 #' Estimates covariance of random components. The related function for the
-#' random intercept flag (`G_estimate_randint`) only applies to the standard
-#' "massmm" case and does not require a generic.
+#' random intercept flag (`G_estimate_randint`) does not require a generic
+#' because the operations are the same for concurrent and non-concurrent models.
 #'
-#' @param mum An object that inherits from the "massmm" class
+#' @param fmm "An object that inherits from the "massmm" class"fastFMM object.
 #' @param ... Additional arguments
 #'
 #' @return An estimation of the G matrix
+#' @export
 
-G_estimate <- function(mum, ...) {
+G_estimate <- function(fmm, ...) {
   UseMethod("G_estimate")
 }
 
@@ -21,9 +22,8 @@ G_estimate <- function(mum, ...) {
 #'
 #' A helper function for `var_analytic`.
 #'
+#' @param fmm "fastFMM" object.
 #' @param mum Result from massive univariate step
-#' @param data A data frame containing all variables in formula
-#' @param L Number of columns of outcome variables
 #' @param betaHat Estimated functional fixed effects
 #' @param HHat Estimate H(s)
 #' @param non_neg Integer control for non-negativity calculation
@@ -31,20 +31,22 @@ G_estimate <- function(mum, ...) {
 #' @param silent Whether to print the step description during calculations.
 #' Defaults to `TRUE`.
 #'
+#' @method G_estimate fastFMM
 #' @return An estimation of the G matrix
 #'
 #' @importFrom Matrix crossprod tcrossprod
 #' @importFrom MASS ginv
+#' @export
 
-# TODO: check function dependencies
-
-G_estimate.massmm <- function(
-  mum, data, L, betaHat, HHat, non_neg, MoM, silent
+G_estimate.fastFMM <- function(
+  fmm, mum, betaHat, HHat, non_neg, MoM, silent
 ) {
   if(silent == FALSE)
     print("Step 3.1.1: Method of Moments Covariance Estimator")
 
-  data_cov <- G_generate(mum = mum, MoM = MoM)
+  data <- fmm$data
+  L <- length(fmm$argvals)
+  data_cov <- G_generate(fmm, mum, MoM)
   GTilde <- array(NA, dim = c(nrow(HHat), L, L))
   idx_lst <- data_cov$idx_lst
   out_index <- mum$out_index
@@ -54,6 +56,7 @@ G_estimate.massmm <- function(
   # this has concatenated design matrix and sums over columns for ID variables
   # do.call(cbind, ztlist)
   Z <- as.matrix(data_cov$Z_orig)
+
   # first part of OLS
   if (MoM == 2) {
     # First part of OLS expression
@@ -158,9 +161,8 @@ G_estimate.massmm <- function(
 #'
 #' A helper function for `var_analytic`.
 #'
+#' @param fmm "fastFMM" object.
 #' @param mum Result from massive univariate step
-#' @param data A data frame containing all variables in formula
-#' @param L Number of columns of outcome variables
 #' @param betaHat Estimated functional fixed effects
 #' @param HHat Estimate H(s)
 #' @param non_neg Integer control for non-negativity calculation
@@ -168,28 +170,31 @@ G_estimate.massmm <- function(
 #' @param silent Whether to print the step description during calculations.
 #' Defaults to `TRUE`.
 #'
+#' @method G_estimate fastFMMconc
 #' @return An estimation of the G matrix
 #'
 #' @importFrom Matrix crossprod tcrossprod
 #' @importFrom MASS ginv
+#' @export
 
-# TODO: check function dependencies
-
-G_estimate.massmm_conc <- function(
-    mum, data, L, betaHat, HHat, non_neg, MoM, silent
+G_estimate.fastFMMconc <- function(
+  fmm, mum, betaHat, HHat, non_neg, MoM, silent
 ) {
   if(silent == FALSE)
     print("Step 3.1.1: Method of Moments Covariance Estimator")
 
+  # Dummy
+  data_cov <- G_generate(fmm, mum, 1, 1)
+  L <- length(fmm$argvals)
   GTilde <- array(NA, dim = c(nrow(HHat), L, L))
   idx_lst <- data_cov$idx_lst
-  out_index <- mum$out_index
+  out_index <- fmm$out_index
   designmat <- mum$designmat
   ztlist <- mum$ztlist
   z_names <- names(ztlist)
   # this has concatenated design matrix and sums over columns for ID variables
   # do.call(cbind, ztlist)
-  Z <- as.matrix(data_cov$Z_orig)
+  # Z <- as.matrix(data_cov$Z_orig)
 
   d_temp <- data[, out_index]
 
@@ -202,8 +207,8 @@ G_estimate.massmm_conc <- function(
 
     for(j in i:L){
       YYj <- YYi * (d_temp[, j] - designmat[[j]] %*% betaHat[, j]) # outcome of product of residuals
-      data_cov <- G_generate(mum, i, j)
-      XTXX <- as.matrix(tcrossprod(MASS::ginv( as.matrix(crossprod(data_cov$Z))), data_cov$Z))
+      data_cov <- G_generate(fmm, mum, i, j)
+      XTXX <- as.matrix(tcrossprod(MASS::ginv(as.matrix(crossprod(data_cov$Z))), data_cov$Z))
 
       bHat <- XTXX %*% YYj  # coefficients from OLS with pseudo-inverse
       GTilde[, i, j] <- GTilde[, j, i] <- sapply(
@@ -214,9 +219,6 @@ G_estimate.massmm_conc <- function(
 
   rm(bHat)
   rm(YYi, YYj, XTXX)
-
-  # Dummy
-  data_cov <- G_generate(mum, 1, 1)
 
   # non-negative least squares for estimation of non-diagonal terms
   # AX: I'm actually not sure if this will work with the concurrent output

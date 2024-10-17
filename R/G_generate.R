@@ -3,12 +3,13 @@
 #' Creates the design matrix that allows for the estimation of the G matrix.
 #' Output related to "G_estimate" dispatch.
 #'
-#' @param mum An object that inherits from the "massmm" class
+#' @param fmm "fastFMM" object
 #' @param ... Additional arguments
 #'
 #' @return A design matrix for G estimation.
+#' @export
 
-G_generate <- function(mum, ...) {
+G_generate <- function(fmm, ...) {
   UseMethod("G_generate")
 }
 
@@ -17,13 +18,16 @@ G_generate <- function(mum, ...) {
 #' Creates a design matrix from the massive univariate step, assuming the model
 #' is not concurrent.
 #'
+#' @param fmm "fastFMM" object. Ignored except for dispatch.
 #' @param mum The massively univariate model output. Contains relevant data,
 #' such as the transposed Ztlist from the univariate fit.
 #' @param MoM indicator for type of MoM estimation
 #'
+#' @method G_generate fastFMM
 #' @return A list with the new Z, the original Ztlist, and indices
+#' @export
 
-G_generate.massmm <- function(mum, MoM) {
+G_generate.fastFMM <- function(fmm, mum, MoM) {
 
   # Z_lst is the ZTlist (transposed) output from:
   #   sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )
@@ -146,18 +150,22 @@ G_generate.massmm <- function(mum, MoM) {
 #' is concurrent. Unlike the non-concurrent case, there is curently no encoding
 #' for different MoM estimators.
 #'
-#' @param mum The massively univariate model output with class "massmm_conc".
-#' Contains relevant data, such as the transposed Ztlist from the univariate fit.
+#' @param fmm "fastFMM" object. Ignored except for dispatch.
+#' @param mum The massively univariate model output. Contains relevant data,
+#' such as the transposed Ztlist from the univariate fit.
 #' @param MoM indicator for type of MoM estimation
 #' @param i Integer for first index of the covariance
 #' @param j Integer for second index of the covariance
 #'
+#' @method G_generate fastFMMconc
 #' @return A list with the new Z, the original Ztlist, and indices
 #'
+
 #' @importFrom Matrix rowSums
+#' @export
 
 # AX: Add back all_crossterms
-G_generate.massmm_conc <- function(mum, i, j, MoM = 1) {
+G_generate.fastFMMconc <- function(fmm, mum, i, j, MoM = 1) {
 
   # Z_lst is the ZTlist (transposed) output from:
   #   sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )
@@ -165,100 +173,60 @@ G_generate.massmm_conc <- function(mum, i, j, MoM = 1) {
   # ID is the name of the ID factor (which determines what we can sum across)
   # assumes the names of HHat are generated from this same table in same order
 
-  # Force MoM case
-  MoM <- 1
-
-  RE_table <- mum$varcorr_df
+  # Choice of i or j for the RE table is arbitrary
+  RE_table <- mum$varcorr_df[[i]]
   ID <- mum$subj_id
 
   # 1) Gather the appropriate Z matrices
 
-  # AX: It's possible the base rowSums will also work
+  # Note these are rowSums
   Z_list_i <- mum$ztlist[[i]]
-  Z_orig_i <- sapply(Z_list_i, Matrix::rowSums)
-
   Z_list_j <- mum$ztlist[[j]]
-  Z_orig_j <- sapply(Z_list_j, Matrix::rowSums)
 
-  #1) concatenate Z_orig
   # list where each element will be the design submatrix for corresponding term
-  Z_orig <- Z_lst
-  z_names <- names(Z_lst)
-
+  z_names_i <- colnames(Z_list_i)
+  z_names_j <- colnames(Z_list_j)
+  # RE_table rows should be consistent, so i or j is arbitrary
   Z <- vector(length = nrow(RE_table), "list")
+  idx_vec <- vector(length = nrow(RE_table))
 
   for (k in 1:nrow(RE_table)) {
-    # iterate through covariance term names (i.e., random effect terms)
-
-    cross_term <- !is.na(RE_table$var2)[k]  # cross term (covariance term)
     re_name <-  RE_table[k, 1] # random effects
+    var1_i <- RE_table$var1[k]
+    var1_j <- gsub(paste0("\\_", i, "$"), paste0("\\_", j), var1)
+    nm1_i <- paste0(re_name, ".",  var1_i) # name of Z_lst (outputted by lme4 getME() )
+    nm1_j <- paste0(re_name, ".", var1_j)
 
-    # check if interaction
-    if (grepl(":", re_name, fixed = TRUE)) {
-      re_interact <- TRUE # interaction of random effects
-      ID_flag <- FALSE # this is always false for interactions of random effects
-    } else {
-      re_interact <- FALSE # interaction of random effects
-      # this determines whether the main subject/ID variable is triggered;
-      # indicates we should rowSum across all columns associated with ID
-      ID_flag <- ifelse(re_name == ID, TRUE, FALSE)
+    if (is.na(RE_table$var2)[k]) { # not cross-term
+      Z[[k]] <- matrix(
+        Z_list_i[, nm1_i] * Z_list_j[, nm1_j],
+        ncol = 1
+      )
+    } else { # is cross-term
+      # Pick nm2 from the j index
+      var2_j <- gsub(paste0("\\_", i, "$"), paste0("\\_", j), RE_table$var2[k])
+      nm2_j <- paste0(RE_table[k, 1], '.', var2_j)
+      Z[[k]] <- matrix(
+        Z_list_i[, nm1_i] * Z_list_j[, nm2_j] * 2,
+        ncol = 1
+      )
     }
-
-    # either a blank or the name of the last variable
-    v2 <- ifelse(is.na(RE_table$var2[k]), "", paste0("_", RE_table$var2[k]))
-    # intercept term so does not require squaring
-    intrcpt <- ifelse(RE_table$var1[k] == "(Intercept)", TRUE, FALSE )
-
-    # check to see if this is the cross-term between two random effects (e.g., intercept x slope)
-    if (!cross_term) {
-      # NOT a cross-term (covariance term)
-
-      # find grp -- var1 combination that matches Z_lst names (z_names)
-      var1 <- RE_table$var1[k]
-      nm <- paste0(re_name, ".",  var1) # name of Z_lst (outputted by lme4 getME() )
-      zlst_idx <- which(z_names == nm) # find index of zlst element that has appropriate design matrix
-
-      Z[[k]] <- Z_list_i[[zlst_idx]] * Z_list_j[[zlst_idx]]
-
-    } else {
-      # Cross term
-
-      ## since cross term is element-wise product between a random intercept and a random slope, the entries are only non-zero
-      ## when the random intercept is 1 (which are the same for the same factor RE), so we just need to multiple
-      ## the random slope by 2 (to emulate the cross term), all other terms will be 0 (so we can avoid those)
-
-      # find grp -- var1 combination that matches Z_lst names (z_names)
-      rand_slope <- RE_table$var2[k] # the cross terms do not use var1, they only use var2 for znames
-      nm <- paste0( re_name, ".",  rand_slope ) # name of Z_lst (outputted by lme4 getME() )
-      rand_slope_idx <- which(z_names == nm) # find index of matrix that has appropriate design matrix
-
-      # TODO: Check if this is equivalent to Z_lst[[rand_slope_idx]] * Z_lst [[intrcpt]] * 2
-      Z[[k]] <- Z_list_i[[rand_slope_idx]] + Z_list_j[[rand_slope_idx]]
-    }
-
-    # ID flag -- if main ID variable is the only random effect factor for row j of RE_table (like (1 | ID  )   or (variable | ID), then these submatrices are summed across columns )
-    # sum across columns
-
-    if (ID_flag) {
-      Z[[k]] <- matrix(Matrix::rowSums(Z[[k]]), ncol = 1)
-      colnames(Z[[k]]) <- paste0(RE_table$grp[k], "_", RE_table$var1[k], v2) # name column
-      idx_vec[k] <- 1
-    } else {
-      idx_vec[k] <- ncol(Z[[k]])         # number of columns in matrix
-      colnames(Z[[k]]) <- paste0(RE_table$grp[k], "_", RE_table$var1[k], v2, "_", 1:ncol(Z[[k]]))   # name columns
-    }
+    idx_vec[k] <- ncol(Z[[k]])
   }
 
-  Z <- do.call(cbind, Z) # concatenate
-
-  # TODO: Add cross-terms for multiple covariates/columns same random effects
-  # Probably need to doctor the data a bit to test this
-  # AX: Add all_crossterms instead of addition
+  idx_vec <- c(0, cumsum(idx_vec))
+  # column indices
+  idx_lst <- sapply(
+    seq_along(1:nrow(RE_table)),
+    function(x) (idx_vec[x] + 1):(idx_vec[x+1])
+  )
+  Z <- do.call(cbind, Z)
 
   return(
     list(
       Z = Z,
-      Z_orig = list(Z_orig_i, Z_orig_j),
+      # Z_orig is already gone because of rowSums previously
+      Z_orig = NULL,
       ztlist = list(Z_list_i, Z_list_j),
       idx_lst = idx_lst,
       idx_vec = idx_vec[-1],

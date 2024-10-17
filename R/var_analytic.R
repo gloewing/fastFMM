@@ -1,13 +1,15 @@
 #' Analytic variance calculation
 #'
+#' Helper for `fui`. Analytic calculation for Gaussian models.
+#'
+#' @param fmm Object of class "fastFMM".
 #' @param mum Massively univariate model output of class "massmm"
-#' @param betaHat Matrix of smoothed coefficients
-#' @param data Data frame of values to fit
-#' @param L integer number of points on functional domain
-#' @param MoM integer MoM estimator
-#' @param non_neg Integer indicator of non-negativity calculation
-#' @param nknots_cov Integer number of knots for splines
-#' @param parallel Boolean indicator for parallel processing
+#' @param smoothed Outputs from the smoothing Step 2
+#' @param MoM integer, indicates type of MoM estimator (1 or 2)
+#' @param non_neg Integer, indicates type of non-negativity calculation
+#' @param nknots_cov Integer, number of knots for splines
+#' @param seed Integer random seed
+#' @param parallel Logical, whether to use parallel processing
 #' @param silent Logical, suppresses messages when `TRUE`. Passed from `fui`.
 #'
 #' @return List of final outputs of `fui`
@@ -18,66 +20,59 @@
 #' @importFrom parallel mclapply
 #' @importFrom methods new
 #' @importFrom mvtnorm rmvnorm
+#' @export
 
 var_analytic <- function(
+  fmm,
   mum,
-  betaHat,
-  data,
-  L,
+  smoothed,
   MoM,
   non_neg,
   nknots_cov,
+  seed,
   parallel,
   silent
 ) {
 
-# 0 Preparation of H, R #####################################################
+  # 0 Preparation of H, R #####################################################
 
   # Variance estimates of random components: H(s), R(s)
+  if (!silent) print("Step 3: Inference (Analytic)")
   if (!silent) print("Step 3.0: Preparation")
 
-  randintercept <- mum$randintercept
-  argvals <- mum$argvals
-  p <- nrow(mum$betaTilde)
+  # Source variables
+  betaHat <- smoothed$betaHat
+  HHat <- smoothed$HHat
+  lambda <- smoothed$lambda
+  S <- smoothed$S
+  B <- smoothed$B
 
-  HHat <- t(
-    apply(
-      mum$sigmausqHat, 1,
-      function(b) stats::smooth.spline(x = mum$argvals, y = b)$y
-    )
-  )
-  ind_var <- which(grepl("var", rownames(HHat)) == TRUE)
-  HHat[ind_var, ][which(HHat[ind_var, ] < 0)] <- 0
+  # AX: add imputation here
+  data <- fmm$data
+  randintercept <- mum$randintercept
+  argvals <- fmm$argvals
+  designmat <- mum$designmat
+  p <- nrow(mum$betaTilde)
+  L <- length(fmm$argvals)
   RHat <- t(
     apply(
-      mum$sigmaesqHat,
-      1,
-      function(b) stats::smooth.spline(x = mum$argvals, y = b)$y
+      mum$sigmaesqHat, 1,
+      function(b) stats::smooth.spline(x = argvals, y = b)$y
     )
   )
   RHat[which(RHat < 0)] <- 0
 
   # 1 MoM estimator of G #######################################################
 
-  # 1.1 Preparation A: Random intercept flag ===================================
-
-  # Includes potential NNLS correction for diagonals (for variance terms)
-
   if (randintercept) {
 
-    GTilde <- G_estimate_randint(
-      data = data,
-      L = L,
-      out_index = mum$out_index,
-      designmat = mum$designmat,
-      betaHat = betaHat,
-      silent = silent
-    )
+    # 1.1 Preparation A: Random intercept case =================================
+    # Includes potential NNLS correction for diagonals (for variance terms)
 
-    if (!silent) {
-      print("Step 3.1: MoM estimator of G")
+    GTilde <- G_estimate_randint(fmm, designmat, betaHat, silent)
+
+    if (!silent)
       print("Step 3.1.1: Preparation A")
-    }
 
     diag(GTilde) <- HHat[1, ] # L x L matrix
     # Fast bivariate smoother
@@ -94,9 +89,9 @@ var_analytic <- function(
 
   } else {
 
-    # 1.1 Preparation B ========================================================
+    # 1.1 Preparation B ==========================================================
 
-    ## if more random effects than random intercept only
+    ## Runs if there are more random effects than the intercept
     if (!silent)
       print("Step 3.1.1: Preparation B")
 
@@ -106,16 +101,7 @@ var_analytic <- function(
     ## Method of Moments estimator for G() with potential NNLS correction
     # for diagonals (for variance terms)
 
-    G_est_out <- G_estimate(
-      mum = mum,
-      data = data,
-      L = L,
-      betaHat = betaHat,
-      HHat = HHat,
-      non_neg = non_neg,
-      MoM = MoM,
-      silent = silent
-    )
+    G_est_out <- G_estimate(fmm, mum, betaHat, HHat, non_neg, MoM, silent)
     GTilde <- G_est_out$GTilde
     data_cov <- G_est_out$data_cov
 
@@ -145,7 +131,7 @@ var_analytic <- function(
 
   ## Obtain the corresponding rows of each subject
   obs.ind <- list()
-  group <- mum$subj_id
+  group <- mum$group
   ID.number <- unique(data[, group])
   for(id in ID.number) {
     obs.ind[[as.character(id)]] <- which(data[, group] == id)
@@ -158,7 +144,7 @@ var_analytic <- function(
   # AX: Z_orig or rowsummed?
   # AX: Check the structure of HHat and its product with Z
   if (!randintercept) {
-    Z <- mum$ztlist[[1]]
+    Z <- data_cov$Z_orig
     qq <- ncol(Z)
     HHat_trim <- array(NA, c(qq, qq, L)) # array for Hhat
   }
@@ -181,7 +167,7 @@ var_analytic <- function(
   # AX: separate issue: bug catching in parallel
   # AX: report failed indices of calculation (e.g., due to non-invertible matrices)
   # AX: E.g., message, consider removal of terminal points on functional domain
-  parallel_fn <- function(s){
+  parallel_fn <- function(s) {
     V.subj.inv <- c()
     ## Invert each block matrix, then combine them
     if (!randintercept) {
@@ -209,7 +195,7 @@ var_analytic <- function(
           diag(RHat[s], Ji)
       } else {
         V.subj <- Z[subj_ind, , drop = FALSE] %*%
-          tcrossprod(cov.trimmed, Z[subj_ind, , drop = FALSE]) +
+          Matrix::tcrossprod(cov.trimmed, Z[subj_ind, , drop = FALSE]) +
           diag(RHat[s], length(subj_ind))
       }
 
@@ -315,8 +301,9 @@ var_analytic <- function(
     massVar[[s]]$XTViv[lengths(massVar[[s]]$XTViv) != 0])
   var.beta.tilde.theo <- lapply(argvals, function(s)
     massVar[[s]]$var.beta.tilde.theo)
-  var.beta.tilde.theo <- simplify2array(var.beta.tilde.theo) %>%
-    array(dim = c(p, p, L))
+  var.beta.tilde.theo <- array(
+    simplify2array(var.beta.tilde.theo), dim = c(p, p, L)
+  )
 
   suppressWarnings(rm(massVar, resStart, res_template, template_cols))
 
@@ -398,7 +385,9 @@ var_analytic <- function(
   var.beta.hat <- array(NA, dim = c(L, L, p))
   for(r in 1:p) {
     M <- B %*%
-      Matrix::tcrossprod(solve(Matrix::crossprod(B) + lambda[r] * S), B) +
+      Matrix::tcrossprod(
+        solve(Matrix::crossprod(B) + lambda[r] * S), B
+      ) +
       matrix(1/L, nrow = L, ncol = L)
     var.raw <- M %*% Matrix::tcrossprod(var.beta.tilde.s[, , r], M)
     ## trim eigenvalues to make final variance matrix PSD
@@ -424,7 +413,7 @@ var_analytic <- function(
   }
 
   # Decide whether to return design matrix or just set it to NULL
-  if (!design_mat) designmat <- NA
+  # if (!design_mat) designmat <- NA
   if (!silent)
     message(
       paste0(
@@ -449,12 +438,52 @@ var_analytic <- function(
       G = GTilde,
       GHat = GHat,
       Z = mum$ztlist,
-      argvals = mum$argvals,
+      argvals = fmm$argvals,
       randeffs = mum$randeffs,
       se_mat = mum$se_mat
     )
   )
+}
 
+# Helper functions #############################################################
+
+# Functions related to G generation/estimation are in separate files for
+# convenience.
+
+#' select_knots.R from refund package
+#'
+#' Copied from [select_knots](https://rdrr.io/cran/refund/src/R/select_knots.R)
+#' because the original is not exported for use.
+#'
+#' @param t Numeric
+#' @param knots Numeric scalar or vector, the number/numbers of  knots or the
+#' vector/vectors of knots for each dimension. Default = 10
+#' @param p Numeric, the degrees of B-splines. Default = 3.
+#' @param option Character, knot spacing, can be `"equally-spaced"` or
+#' `"quantile"`
+#'
+#' @return Vector of specified knots
+#'
+#' @importFrom stats quantile
+#' @export
+
+select_knots <- function(
+    t, knots = 10, p = 3, option = "equally-spaced"
+) {
+  qs <- seq(0, 1, length = knots + 1)
+
+  if (option == "equally-spaced")
+    knots <- (max(t) - min(t)) * qs + min(t)
+
+  if (option == "quantile")
+    knots <- as.vector(stats::quantile(t,qs))
+
+
+  K <- length(knots)
+  knots_left <- 2 * knots[1] - knots[p:1 + 1]
+  knots_right <- 2 * knots[K] - knots[K - (1:p)]
+
+  return(c(knots_left, knots, knots_right))
 }
 
 #' Fast block diagonal generator, taken from Matrix package examples
@@ -467,6 +496,7 @@ var_analytic <- function(
 #' @return Block diagonal version of input
 #'
 #' @importFrom methods new
+#' @export
 
 bdiag_m <- function(lmat) {
   ## Copyright (C) 2016 Martin Maechler, ETH Zurich
@@ -505,6 +535,7 @@ bdiag_m <- function(lmat) {
 #' @param cov_vec Character vector
 #'
 #' @return List of relevant outputs
+#' @export
 
 cov_organize_start <- function(cov_vec) {
   # Assume each set of cov for 2 preceeding variance terms of random effects
@@ -625,6 +656,7 @@ cov_organize_start <- function(cov_vec) {
 #' @param V Matrix of dimension n x n
 #'
 #' @return A Matrix with negative eigenvalues removed
+#' @export
 
 eigenval_trim <- function(V) {
   ## trim non-positive eigenvalues to ensure positive semidefinite
@@ -636,10 +668,10 @@ eigenval_trim <- function(V) {
     # nothing needed here because matrix is already PSD
     return(V)
   } else if (length(eigen.positive) == 0) {
-    return(tcrossprod(edcomp$vectors[, 1]) * edcomp$values[1])
+    return(Matrix::tcrossprod(edcomp$vectors[, 1]) * edcomp$values[1])
   } else if (length(eigen.positive) == 1) {
     return(
-      tcrossprod(as.vector(edcomp$vectors[,1])) *
+      Matrix::tcrossprod(as.vector(edcomp$vectors[,1])) *
         as.numeric(edcomp$values[1])
     )
   } else {
@@ -648,7 +680,7 @@ eigenval_trim <- function(V) {
     return(
       matrix(
         edcomp$vectors[, eigen.positive] %*%
-          tcrossprod(
+          Matrix::tcrossprod(
             diag(edcomp$values[eigen.positive]),
             edcomp$vectors[,eigen.positive]
           ),
@@ -671,6 +703,7 @@ eigenval_trim <- function(V) {
 #'
 #' @importFrom splines spline.des
 #' @import Matrix
+#' @export
 
 pspline_setting <- function(
     x,
@@ -793,24 +826,25 @@ pspline_setting <- function(
 #' @param control See `optim`.
 #'
 #' @return A smoothed matrix
+#' @export
 
 fbps_cov <- function(
-  data,
-  subj = NULL,
-  covariates = NULL,
-  knots = 35,
-  knots.option = "equally-spaced",
-  periodicity = c(FALSE,FALSE),
-  p = 3,
-  m = 2,
-  lambda = NULL,
-  selection = "GCV",
-  search.grid = T,
-  search.length = 100,
-  method="L-BFGS-B",
-  lower = -20,
-  upper = 20,
-  control = NULL
+    data,
+    subj = NULL,
+    covariates = NULL,
+    knots = 35,
+    knots.option = "equally-spaced",
+    periodicity = c(FALSE,FALSE),
+    p = 3,
+    m = 2,
+    lambda = NULL,
+    selection = "GCV",
+    search.grid = T,
+    search.length = 100,
+    method="L-BFGS-B",
+    lower = -20,
+    upper = 20,
+    control = NULL
 ) {
 
   ## data dimension
@@ -870,7 +904,7 @@ fbps_cov <- function(
   List <- pspline_setting(x, xknots, p1, m1, periodicity[1])
   A1 <- List$A
   B1 <- List$B
-  Bt1 <- Matrix(t(as.matrix(B1)))
+  Bt1 <- Matrix::Matrix(t(as.matrix(B1)))
   s1 <- List$s
   Sigi1_sqrt <- List$Sigi_sqrt
   U1 <- List$U

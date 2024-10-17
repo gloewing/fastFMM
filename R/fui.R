@@ -23,7 +23,7 @@
 #' @param data A data frame containing all variables in formula
 #' @param family GLM family of the response. Defaults to \code{gaussian}.
 #' @param var Logical, indicating whether to calculate and return variance
-#' of the coefficient estimates. Defaults to \code{TRUE}.
+#' of the coefficient estimates. Defaults to `TRUE`.
 #' @param analytic Logical, indicating whether to use the analytic inferenc
 #' approach or bootstrap. Defaults to \code{TRUE}.
 #' @param parallel Logical, indicating whether to do parallel computing.
@@ -58,10 +58,10 @@
 #' @param seed Numeric value used to make sure bootstrap replicate (draws) are
 #' correlated across functional domains for certain bootstrap approach
 #' @param subj_id Name of the variable that contains subject ID.
-#' @param num_cores Number of cores for parallelization. Defaults to 1.
+#' @param n_cores Number of cores for parallelization. Defaults to 1.
 #' @param caic Logical, indicating whether to calculate cAIC. Defaults to
 #' \code{FALSE}.
-#' @param REs Logical, indicating whether to return random effect estimates.
+#' @param randeffs Logical, indicating whether to return random effect estimates.
 #' Defaults to \code{FALSE}.
 #' @param non_neg 0 - no non-negativity constrains, 1 - non-negativity
 #' constraints on every coefficient for variance, 2 - non-negativity on
@@ -92,8 +92,6 @@
 #' @import lme4
 #' @import parallel
 #' @import magrittr
-#' @import dplyr
-#' @import stringr
 #' @import mgcv
 #' @import refund
 #' @importFrom MASS ginv
@@ -134,78 +132,101 @@ fui <- function(
   boot_type = NULL,
   seed = 1,
   subj_id = NULL,
-  num_cores = 1,
+  n_cores = 1,
   caic = FALSE,
-  REs = FALSE,
+  randeffs = FALSE,
   non_neg = 0,
   MoM = 1,
-  concurrent = FALSE,
+  concurrent = FALSE
 ) {
 
   # 0. Setup ###################################################################
 
-  # 0.1 Set parallelization ==================================================
+  # 0.0 Argument consistency checks ============================================
 
   # If doing parallel computing, set up the number of cores
-  if (parallel & !is.integer(num_cores)) {
-    num_cores <- as.integer(round(parallel::detectCores() * 0.75))
-    if (num_cores < 2)
+  if (parallel & !is.integer(n_cores)) {
+    n_cores <- as.integer(round(parallel::detectCores() * 0.75))
+    if (n_cores < 2)
       warning("Only 1 core detected for parallelization.")
     if (!silent)
-      message(paste("No. cores used for parallelization:", num_cores))
+      message("Cores used for parallelization: ", n_cores)
   }
 
-  # For non-Gaussian family, only do bootstrap inference
-  if (family != "gaussian")
-    analytic <- FALSE
-
-  # 0.2  Organize the input from the model formula =============================
-
-  model_formula <- as.character(formula)
-  stopifnot(model_formula[1] == "~" & length(model_formula) == 3)
-
-  # Stop if there are column names with "." to avoid issues with covariance
-  # G() and H() calculations
-  dep_str <- deparse(model_formula[3])
-  if (grepl(".", dep_str, fixed = TRUE)) {
-    # make sure it isn't just a call to all covariates with "Y ~. "
-    # remove first character of parsed formula string and check
-    dep_str_rm <- substr(dep_str, 3, nchar(dep_str))
-    if (grepl(".", dep_str_rm, fixed = TRUE)) {
-      stop(
-        paste0(
-          'Remove the character "." from all non-functional covariate names ',
-          'and rerun fui()', '\n',
-          '- E.g., change "X.1" to "X_1"', '\n',
-          '- The string "." *should* be kept in functional outcome names ',
-          '(e.g., "Y.1" *is* proper naming).'
-        )
+  # For non-Gaussian family, manually set variance to bootstrap inference
+  if (family != "gaussian") {
+    if (analytic & !silent) { # Notify user of conflict
+      message(
+        "Analytic variance is not supported for non-Gaussian models. ",
+        "Variance calculation will be done through bootstrap."
       )
     }
+    analytic <- FALSE
   }
-  rm(dep_str)
 
-  # Obtain the dimension of the functional domain
-  # Find indices that start with the outcome name
+  # 0.1 Concurrent model checks ================================================
+
+  # Detect functional covariates by matching length to L
+  model_formula <- as.character(formula)
   out_index <- grep(paste0("^", model_formula[2]), names(data))
+  L <- length(out_index)
+  x_names <- all.vars(formula)[-1]
+  x_classes <- sapply(x_names, function(x) class(data[[x]]))
+  x_ncols <- sapply(
+    x_names,
+    function(x) length(grep(paste0("^", x), names(data)))
+  )
+  fun_covariates <- NULL # Redundacy for clarity
+  fun_covariates <- unique(c(x_names[x_classes == "AsIs"], x_names[x_ncols == L]))
+  message("Functional covariate(s): ", paste0(fun_covariates, collapse = ", "))
+  # Check for inconsistencies with user-set concurrence argument
+  if (concurrent & is.null(fun_covariates)) {
+    stop(
+      "No functional covariates found for concurrent model fitting.", "\n",
+      "Incoporate functional covariates or set `concurrent = F` in args."
+    )
+  } else if (!concurrent & !is.null(fun_covariates)) {
+    warning(
+      "Functional covariates detected: ",
+      paste0(fun_covariates, collapse = ", "), "\n",
+      "Execution will continue, but consider setting `concurrent = TRUE`."
+    )
+  }
 
-  # Read the full list of columns or the matrix column
-  # Set L depending on whether out_index is multiple columns or a matrix
-  if (length(out_index) != 1) {
-    # Multiple columns
-    L <- length(out_index)
+  # Check for the MoM estimator and coerce to 1
+  if (concurrent & MoM == 2) {
+    warning(
+      "MoM = 2 is currently not supported for concurrent models. ",
+      "Calculation will proceed with MoM = 1."
+    )
+    MoM <- 1
+  }
+
+  # 0.2 Create the reference object ============================================
+
+  fmm_params <- list(
+    formula = formula,
+    data = data,
+    subj_id = subj_id,
+    argvals = argvals,
+    family = family,
+    residuals = residuals,
+    caic = caic,
+    randeffs = randeffs,
+    var = var,
+    analytic = analytic
+  )
+
+  if (!concurrent) {
+    fmm <- do.call(new_fastFMM, fmm_params)
   } else {
-    # Matrix column
-    L <- ncol(data[, out_index])
+    fmm_params$fun_covariates <- fun_covariates
+    fmm <- do.call(new_fastFMMconc, fmm_params)
   }
 
   # 0.3 Impute missing values ==================================================
 
-  # Fill in missing values of functional outcome using FPCA
-  # rows with missing outcome values
-
-  # AX: Consider shortening this through writing a new function.
-
+  out_index <- fmm$out_index
   missing_rows <- which(rowSums(is.na(data[, out_index])) != 0)
   if (length(missing_rows) != 0) {
     if(analytic & impute_outcome){
@@ -243,36 +264,10 @@ fui <- function(
           "impute_outcome = TRUE"
         )
       )
-
       # remove data with missing rows
       data[, out_index] <- data[-missing_rows, out_index]
     }
-  }
-
-  # 0.4 Functional covariates ==================================================
-
-  # Detect functional covariates
-  x_names <- all.vars(formula)[-1]
-  x_classes <- sapply(x_names, function(x) class(data[[x]]))
-  x_ncols <- sapply(
-    x_names,
-    function(x) length(grep(paste0("^", x), names(data)))
-  )
-  func_covs <- NULL # Redundacy for clarity
-  func_covs <- unique(c(x_names[x_classes == "AsIs"], x_names[x_ncols == L]))
-
-  # Check for inconsistencies between concurrence arg and functional covariates
-  if (concurrent & length(func_covs < 1)) {
-    stop(
-      "No functional covariates found for concurrent model fitting.", "\n",
-      "Incoporate functional covariates or set `concurrent = F` in args."
-    )
-  } else if (!concurrent & length(func_covs) > 0) {
-    warning(
-      "Functional covariates detected: ",
-      paste0(func_covs, collapse = ", "), "\n",
-      "Execution will continue, but consider setting `concurrent = TRUE`."
-    )
+    fmm$data <- data
   }
 
   # 1. Massively univariate mixed models #######################################
@@ -280,59 +275,8 @@ fui <- function(
   if (!silent)
     print("Step 1: Fit Massively Univariate Mixed Models")
 
-  # 1.0 Model sanity checks ====================================================
-
-  if (analytic & !is.null(argvals) & var)
-    message(
-      paste(
-        "'argvals' argument is currently only supported for bootstrap.",
-        "`argvals' ignored: fitting model to ALL points on functional domain"
-      )
-    )
-
-  if (is.null(argvals) | analytic) {
-    argvals <- 1:L
-  } else {
-    if (max(argvals) > L)
-      stop(
-        paste(
-          "Maximum index specified in argvals is greater than",
-          "the total number of columns for the functional outcome"
-        )
-      )
-    L <- length(argvals)
-  }
-
-  if (family == "gaussian" & analytic & L > 400 & var)
-    message(
-      paste(
-        "Your functional data is dense!",
-        "Consider subsampling along the functional domain",
-        "(i.e., reduce columns of outcome matrix)",
-        "or using bootstrap inference."
-      )
-    )
-
-  # Create a matrix to store AICs
-  AIC_mat <- matrix(NA, nrow = L, ncol = 2)
-
-  # 1.1 Fitting ================================================================
-
-  # Initialize parameters within the univariate model
-  # Create an object with the appropriate class: "unimm" or "unimm_conc"
-  uni_model <- new_unimm(
-    formula = formula,
-    family = family,
-    residuals = residuals,
-    caic = caic,
-    REs = REs,
-    analytic = analytic,
-    concurrent = concurrent,
-    func_covs = func_covs
-  )
-
   # Create a list of univariate models ("massively univariate")
-  mum <- massmm(uni_model, argvals, data, parallel)
+  mum <- massmm(fmm, parallel, n_cores)
 
   # 2. Smoothing ###############################################################
 
@@ -345,23 +289,44 @@ fui <- function(
   nknots_cov <- ifelse(is.null(nknots_min_cov), 35, nknots_min_cov)
   nknots_fpca <- min(round(L / 2), 35)
 
+  # Reset argvals
+  argvals <- fmm$argvals
+
   # Smoothing parameter, spline basis, penalty matrix (analytic)
+  # Setup variables
+  lambda <- S <- B <- NULL
+
+  # Smooth coefficient estimates
+  HHat <- t(
+    apply(
+      mum$sigmausqHat, 1,
+      function(b) stats::smooth.spline(x = argvals, y = b)$y
+    )
+  )
+  ind_var <- which(grepl("var", rownames(HHat)) == TRUE)
+  HHat[ind_var, ][which(HHat[ind_var, ] < 0)] <- 0
+
+  betaTilde <- mum$betaTilde
+
   if (analytic) {
-    p <- nrow(mum$betaTilde) # Number of fixed effects parameters
+    p <- nrow(betaTilde) # Number of fixed effects parameters
     betaHat <- matrix(NA, nrow = p, ncol = L)
     lambda <- rep(NA, p)
 
+    # NB: although s() is loaded from mgcv, mgcv::s will break.
+    # Spacedman describes this here: stackoverflow.com/a/20694106
+    # Solution: Import mgcv in full and be careful of collisions in future
     for (r in 1:p) {
-      fit_smooth <- gam(
-        mum$betaTilde[r,] ~ s(argvals, bs = splines, k = (nknots + 1)),
+      fit_smooth <- mgcv::gam(
+        betaTilde[r,] ~ s(argvals, bs = splines, k = nknots + 1),
         method = smooth_method
       )
       betaHat[r,] <- fit_smooth$fitted.values
       lambda[r] <- fit_smooth$sp # Smoothing parameter
     }
 
-    sm <- smoothCon(
-      s(argvals, bs = splines, k = (nknots + 1)),
+    sm <- mgcv::smoothCon(
+      s(argvals, bs = splines, k = nknots + 1),
       data = data.frame(argvals = argvals),
       absorb.cons = TRUE
     )
@@ -371,11 +336,11 @@ fui <- function(
   } else {
     betaHat <- t(
       apply(
-        mum$betaTilde,
+        betaTilde,
         1,
         function(x) {
-          gam(
-            x ~ s(argvals, bs = splines, k = (nknots + 1)),
+          mgcv::gam(
+            x ~ s(argvals, bs = splines, k = nknots + 1),
             method = smooth_method
           )$fitted.values
         }
@@ -383,14 +348,24 @@ fui <- function(
     )
   }
   rownames(betaHat) <- rownames(betaTilde)
+  rm(betaTilde)
   colnames(betaHat) <- 1:L
+
+  # Save a convenient list to pass to variance calculation
+  smoothed <- list(
+    betaHat = betaHat,
+    HHat = HHat,
+    S = S,
+    B = B,
+    lambda = lambda
+  )
 
   # 3. Variance estimation #####################################################
 
   # 3.0 Early return ===========================================================
 
   # End the function call if no variance calculation is required
-  if (var == FALSE) {
+  if (!var) {
     if (!silent) {
       message(
         paste0(
@@ -400,8 +375,16 @@ fui <- function(
         )
       )
     }
-    # Add additional return of smoothed HHat
-    return(list(betaHat = betaHat, argvals = argvals, aic = mum$AIC_mat))
+    # AX: Add additional return of smoothed HHat
+
+    return(
+      list(
+        betaHat = smoothed$betaHat,
+        HHat = smoothed$HHat,
+        argvals = argvals,
+        aic = mum$AIC_mat
+        )
+      )
   }
 
   # At this point, the function either chooses analytic or bootstrap inference
@@ -412,20 +395,23 @@ fui <- function(
   if (analytic) {
     if (!silent) print("Step 3: Inference (Analytic)")
     var_res <- var_analytic(
-      mum = mum,
-      betaHat = betaHat,
-      data = data,
-      L. = L,
-      MoM = MoM,
-      non_neg = non_neg,
-      nknots_cov = nknots_cov,
-      parallel = parallel,
-      silent = silent
+      fmm,
+      mum,
+      smoothed,
+      MoM,
+      non_neg,
+      nknots_cov,
+      seed,
+      parallel,
+      silent
     )
   } else {
     if (!silent) print("Step 3: Inference (Bootstrap)")
     var_res <- var_bootstrap(mum)
   }
+
+  # AX: dumb workaround
+  if (!design_mat) var_res$designmat <- NULL
 
   return(var_res)
 

@@ -1,90 +1,44 @@
-#' Create a new "unimm" object
-#'
-#' The class "unimm" (and its inheritors) contain parameters for the massively
-#' univariate model step. The method `fit_unimm` will be dispatched to fit the
-#' mixed models.
-#'
-#' @param formula Formula in `lme4` formula syntax.
-#' @param family Character, GLM family of the response. Passed from `fui`.
-#' @param residuals Logical, indicates whether residuals are saved from
-#' unsmoothed LME. Passed from `fui`.
-#' @param caic Logical, indicates cAIC calculation return. Defaults to `FALSE`.
-#' @param REs Logical, indicates random effect estimates return. Passed from
-#' `fui`.
-#' @param analytic Logical, indicates whether analytic variance will be needed.
-#' Passed from `fui`.
-#' @param concurrent Logical, indicates whether model fitting is concurrent.
-#' @param func_covs Character vector of functional covariate names.
-#'
-#' @return A "unimm" object containing parameters for the univariate step. The
-#' class will be "unimm_conc" if indicated by `concurrent = TRUE`.
-
-new_unimm <- function(
-  formula, family, residuals, caic, REs, analytic, concurrent
-) {
-  unimm <- list(
-    formula = formula,
-    family = family,
-    residuals = residuals,
-    caic = caic,
-    REs = REs,
-    analytic = analytic,
-    concurrent = concurrent,
-    func_covs = func_covs
-  )
-
-  class(unimm) <- "unimm"
-
-  # Create a concurrent model if functional covariates are provided
-  if (concurrent) {
-    unimm$func_covs <- func_covs
-    class(unimm) <- c("unimm_conc", class(unimm))
-  }
-
-  return(unimm)
-}
-
-#' Generic "fit_unimm"
+#' Generic "unimm" model fitting
 #'
 #' Dispatches class-specific methods for fitting a single point during the
 #' univariate mixed model step.
 #'
-#' @param uni_model An object that is or inherits from the "unimm" class.
+#' @param fmm An object that is or inherits from the "fastFMM" class.
 #' @param ... Additional arguments.
 #'
 #' @return Results depends on the dispatched method.
+#' @export
 
-fit_unimm <- function(uni_model, ...) {
-  UseMethod("fit_unimm")
+unimm <- function(fmm, ...) {
+  UseMethod("unimm")
 }
 
 #' Fit a univariate mixed model
 #'
 #' Fits a mixed model at location l. Part of Step 1 of the FUI approach.
 #'
-#' @param uni_model A `unimm` object that contains parameters for the fit.
+#' @param fmm A `fastFMM` object that contains parameters for the fit.
 #' @param l location to fit the model
-#' @param data data frame containing all the variables in formula. Uses value
-#' @param ... Additional arguments (currently ignored)
 #'
-#' @method fit_unimm unimm
+#' @method unimm fastFMM
 #' @import lme4
 #' @importFrom stats as.formula
 #'
 #' @return a list containing point estimates, variance estimates, etc.
+#' @export
 
-fit_unimm.unimm <- function(uni_model, l, data, ...) {
+unimm.fastFMM <- function(fmm, l) {
   # Extract the data at the given point l
-  form <- as.character(uni_model$formula)
-  out_index <- grep(paste0("^", form[2]), names(data))
+  form <- as.character(fmm$formula)
+  out_index <- fmm$out_index
+  data <- fmm$data
   data$Yl <- unclass(data[, out_index][, l])
   # Create a new formula
   formula <- stats::as.formula(paste0("Yl ~ ", form[3]))
 
   # Fit an lmer or glmer model
-  fit_uni <- unimm_lmer(formula, data, uni_model$family)
-  res <- unimm_outs(fit_uni, uni_model)
-  res$out_index <- out_index
+  fit_uni <- unimm_lmer(formula, data, fmm$family)
+  res <- unimm_outs(fit_uni, fmm)
 
   return(res)
 }
@@ -94,74 +48,80 @@ fit_unimm.unimm <- function(uni_model, l, data, ...) {
 #' Fits a mixed model at location l. Part of Step 1 of the FUI approach. Returns
 #' the list of Z matrices for concurrent estimation.
 #'
-#' @param uni_model A `unimm` object that contains parameters for the fit.
+#' @param fmm A `fastFMM` object that contains parameters for the fit.
 #' @param l location to fit the model
-#' @param data data frame containing all the variables in formula. Uses value
-#' @param ... Additional arguments (currently ignored)
+#' @param MoM indicator of type of MoM estimator. Coerced to `MoM == 1` to
+#' prevent storage of all Z matrices.
 #'
-#' @method fit_unimm unimm_conc
-#' @import lme4
-#' @importFrom stats as.formula model.matrix
-#'
+#' @method unimm fastFMMconc
 #' @return a list containing point estimates, variance estimates, etc. Also
 #' contains `ztlist`, a list of transposed `Z` matrices.
+#'
+#' @import lme4
+#' @importFrom stats as.formula model.matrix
+#' @export
 
-fit_unimm.unimm_conc <- function(uni_model, l, data, ...) {
+unimm.fastFMMconc <- function(fmm, l) {
   # Extract the correct index of the functional domain
-  form <- as.character(uni_model$formula)
-  out_index <- grep(paste0("^", form[2]), names(data))
-  data$Yl <- unclass(data[, out_index][, l])
+  form <- as.character(fmm$formula)
+  data <- fmm$data
+  out_index <- fmm$out_index
+  temp <- data[, -out_index]
 
   # Get the nonfunctional variables
-  all_vars <- all.vars(uni_model$formula)
-  nonfunc_vars <- all_vars[!all_vars %in% uni_model$func_vars]
-
+  all_vars <- all.vars(fmm$formula)
+  nonfun_covariates <- all_vars[
+    !all_vars %in% c(fmm$fun_covariates, form[2])
+  ]
   # Extract the correct indices for each functional variable
-  temp <- data[nonfunc_vars]
-  for (nm in uni_model$func_vars) {
-    out_index <- grep(paste0("^", nm), names(dat))
-    temp[[paste0(nm, "_", l)]] <- unclass(dat[, out_index][, l])
+  temp <- temp[nonfun_covariates]
+  temp$Yl <- unclass(data[, out_index][, l])
+  for (nm in fmm$fun_covariates) {
+    fun_index <- grep(paste0("^", nm), names(data))
+    temp[[paste0(nm, "_", l)]] <- unclass(data[, fun_index][, l])
   }
 
   # Replace functional covariates in the formula
-  formula_l <- gsub(
-    paste0("(", paste0(func_vars, collapse = "|"), ")"),
-    paste0("\\1_", l),
-    deparse(uni_model$formula)
+  formula_l <- paste0(
+    "Yl ~ ",
+    gsub(
+      # Regex of the functional covariate names
+      paste0("(", paste0(fun_covariates, collapse = "|"), ")"),
+      paste0("\\1_", l),
+      form[3]
+    )
   )
+  formula_l <- as.formula(formula_l)
 
   # Fit an lmer or glmer model
-  fit_uni <- unimm_lmer(formula_l, data, uni_model$family)
-  res <- unimm_outs(fit_uni, uni_model)
+  fit_uni <- unimm_lmer(formula_l, temp, fmm$family)
+  res <- unimm_outs(fit_uni, fmm)
 
   # Z matrix and random effects table
-  if (uni_model$analytic) {
-    # AX: Add rowsums for mom == 1 case
-    # colSums
-    # AX: Check that the downstream casting works (e.g., matrix(x, ncol = 1))
+  if (fmm$analytic) {
     res$ztlist <- sapply(lme4::getME(fit_uni, "Ztlist"), function(x) colSums(x))
     varcorr_df <- as.data.frame(lme4::VarCorr(fit_uni))
     res$varcorr_df <- varcorr_df[varcorr_df$grp != "Residual", 1:3]
     res$designmat <- stats::model.matrix(fit_uni)
   }
 
-  res$out_index <- out_index
   return(res)
 }
 
 #' Fit and return a univariate mixed model (helper)
 #'
-#' Helper for `fit_unimm`. Detects whether to use `lmer` or `glmer` and returns
+#' Helper for `unimm`. Detects whether to use `lmer` or `glmer` and returns
 #' the resulting model. Also helpful for producing a sample model during the
 #' massively univariate step.
 #'
 #' @param formula Model formula.
-#' @param data Data frame to use to fit the model.
-#' @param family Model family. Use `lmer` if "gaussian", `glmer` otherwise.
+#' @param data Data frame of observations to fit
+#' @param family Character, family of model
 #'
 #' @import lme4
 #'
-#' @return an `lme4` model
+#' @return an `lme4` model chosen between `lmer` or `glmer`, as appropriate.
+#' @export
 
 unimm_lmer <- function(formula, data, family) {
   if (family == "gaussian") {
@@ -170,7 +130,9 @@ unimm_lmer <- function(formula, data, family) {
         formula = formula,
         data = data,
         control = lme4::lmerControl(
-          optimizer = "bobyqa", optCtrl = list(maxfun = 5000)
+          optimizer = "bobyqa",
+          optCtrl = list(maxfun = 5000),
+          check.rankX = "ignore"
         )
       )
     )
@@ -181,7 +143,9 @@ unimm_lmer <- function(formula, data, family) {
         data = data,
         family = family,
         control = lme4::glmerControl(
-          optimizer = "bobyqa", optCtrl = list(maxfun = 5000)
+          optimizer = "bobyqa",
+          optCtrl = list(maxfun = 5000),
+          check.rankX = "ignore"
         )
       )
     )
@@ -190,33 +154,34 @@ unimm_lmer <- function(formula, data, family) {
 
 #' Get relevant features of univariate models
 #'
-#' Helper for `fit_unimm` that returns various qualities of the univariate fit
+#' Helper for `unimm` that returns various qualities of the univariate fit
 #' produced by `unimm_lmer` (also a helper).
 #'
 #' @param fit_uni An `lme4` object corresponding to the fit at some point on the
 #' functional domain.
-#' @param uni_model A "unimm" class object with parameters of the fit
+#' @param fmm A "fastFMM" class object with parameters of the fit
 #'
 #' @return A list of relevant features of `fit_uni`
 #'
 #' @import lme4
 #' @importFrom cAIC4 cAIC
 #' @importFrom stats residuals AIC BIC
+#' @export
 
-unimm_outs <- function(fit_uni, uni_model) {
+unimm_outs <- function(fit_uni, fmm) {
   # Fixed effects estimates
   betaTilde <- lme4::fixef(fit_uni)
 
   # Initialize returned parameters
-  randeffs <- aic_met <- resids <- NA
+  randeffs <- aic_met <- residuals <- NA
 
   # these are residuals from including the random effects (i.e., with BLUPs),
   # not JUST from fixed effects
   # Compare with nlme::lme(); 2 columns of residuals in lme: mod$residuals
-  if(uni_model$residuals) resids <- as.numeric(residuals(fit_uni))
-  if(uni_model$caic) aic_met <- as.numeric(cAIC4::cAIC(fit_uni)$caic)[1]
+  if(fmm$residuals) residuals <- as.numeric(stats::residuals(fit_uni))
+  if(fmm$caic) aic_met <- as.numeric(cAIC4::cAIC(fit_uni)$caic)[1]
   # random effects
-  if(uni_model$REs) randeffs <- lme4::ranef(fit_uni)
+  if(fmm$randeffs) randeffs <- lme4::ranef(fit_uni)
   varcorr <- as.data.frame(lme4::VarCorr(fit_uni))
 
   # Setup returned results
@@ -225,12 +190,12 @@ unimm_outs <- function(fit_uni, uni_model) {
     group = varcorr[1, 1],
     aic = stats::AIC(fit_uni),
     bic = stats::BIC(fit_uni),
-    residuals = resids,
+    residuals = residuals,
     caic = aic_met,
     randeffs = randeffs
   )
 
-  if (!uni_model$analytic)
+  if (!fmm$analytic)
     return(res)
 
   # Need additional info for analytic variance calculation
