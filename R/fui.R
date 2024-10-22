@@ -178,14 +178,16 @@ fui <- function(
   )
   fun_covariates <- NULL # Redundacy for clarity
   fun_covariates <- unique(c(x_names[x_classes == "AsIs"], x_names[x_ncols == L]))
-  message("Functional covariate(s): ", paste0(fun_covariates, collapse = ", "))
+  fun_exists <- length(fun_covariates) > 0
+  if (fun_exists)
+    message("Functional covariate(s): ", paste0(fun_covariates, collapse = ", "))
   # Check for inconsistencies with user-set concurrence argument
-  if (concurrent & is.null(fun_covariates)) {
+  if (concurrent & !fun_exists) {
     stop(
       "No functional covariates found for concurrent model fitting.", "\n",
       "Incoporate functional covariates or set `concurrent = F` in args."
     )
-  } else if (!concurrent & !is.null(fun_covariates)) {
+  } else if (!concurrent & fun_exists) {
     warning(
       "Functional covariates detected: ",
       paste0(fun_covariates, collapse = ", "), "\n",
@@ -223,6 +225,8 @@ fui <- function(
     fmm_params$fun_covariates <- fun_covariates
     fmm <- do.call(new_fastFMMconc, fmm_params)
   }
+
+  print(fmm$fun_covariates)
 
   # 0.3 Impute missing values ==================================================
 
@@ -403,6 +407,7 @@ fui <- function(
       nknots_cov,
       seed,
       parallel,
+      n_cores,
       silent
     )
   } else {

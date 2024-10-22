@@ -10,6 +10,7 @@
 #' @param nknots_cov Integer, number of knots for splines
 #' @param seed Integer random seed
 #' @param parallel Logical, whether to use parallel processing
+#' @param n_cores Integer number of cores for parallelization
 #' @param silent Logical, suppresses messages when `TRUE`. Passed from `fui`.
 #'
 #' @return List of final outputs of `fui`
@@ -31,6 +32,7 @@ var_analytic <- function(
   nknots_cov,
   seed,
   parallel,
+  n_cores,
   silent
 ) {
 
@@ -129,137 +131,55 @@ var_analytic <- function(
 
   # Calculate the intra-location variance of betaTilde: Var(betaTilde(s))
 
-  ## Obtain the corresponding rows of each subject
-  obs.ind <- list()
+  # Obtain the corresponding rows of each subject
+  obs_ind <- list()
   group <- mum$group
-  ID.number <- unique(data[, group])
-  for(id in ID.number) {
-    obs.ind[[as.character(id)]] <- which(data[, group] == id)
+  id_list <- unique(data[, group])
+  for(id in id_list) {
+    obs_ind[[as.character(id)]] <- which(data[, group] == id)
   }
 
-  ## Concatenate vector of 1s to Z because used that way below
+  # Concatenate vector of 1s to Z because used that way below
   HHat_trim <- NA
-  # AX: Check what qq refers to
-  # AX: rowSums, single entry of ztlist, or entire cbound ztlist?
-  # AX: Z_orig or rowsummed?
-  # AX: Check the structure of HHat and its product with Z
   if (!randintercept) {
     Z <- data_cov$Z_orig
+    if (is.null(Z)) Z <- data_cov$Z # Concurrent case
     qq <- ncol(Z)
     HHat_trim <- array(NA, c(qq, qq, L)) # array for Hhat
   }
 
-  ## Create var.beta.tilde.theo to store variance of betaTilde
-  var.beta.tilde.theo <- array(NA, dim = c(p, p, L))
-  ## Create XTVinvZ_all to store all XTVinvZ used in the
-  # covariance calculation
+  # Create betaTilde_theo_var to store variance of betaTilde
+  betaTilde_theo_var <- array(NA, dim = c(p, p, L))
+  # Create XTVinvZ_all to store all XTVinvZ used in the covariance calculation
   XTVinvZ_all <- vector(length = L, "list")
   ## arbitrarily start find indices
   resStart <- cov_organize_start(HHat[,1])
   res_template <- resStart$v_list_template # index template
   template_cols <- ncol(res_template)
 
-  # AX: Take this out of the function
-  ## Calculate Var(betaTilde) for each location
-  # AX: X[s] and Z[s] for concurrent case
-  # AX: parallel_fn should also be a generic dispatched to nonconcurrent/concurrent
-
-  # AX: separate issue: bug catching in parallel
-  # AX: report failed indices of calculation (e.g., due to non-invertible matrices)
-  # AX: E.g., message, consider removal of terminal points on functional domain
-  parallel_fn <- function(s) {
-    V.subj.inv <- c()
-    ## Invert each block matrix, then combine them
-    if (!randintercept) {
-      cov.trimmed <- eigenval_trim(
-        matrix(c(HHat[, s], 0)[res_template], template_cols)
-      )
-      HHat_trim[, , s] <- cov.trimmed
-    }
-
-    # store XT * Vinv * X
-    XTVinvX <- matrix(0, nrow = p, ncol = p)
-    # store XT * Vinv * Z
-    XTVinvZ_i <- vector(length = length(ID.number), "list")
-
-    ## iterate for each subject
-    for (id in ID.number) {
-      subj_ind <- obs.ind[[as.character(id)]]
-      subj.ind <- subj_ind
-
-      # AX: Check for compatibility with concurrent case
-      # Check dimensionality of Z[s][subj_ind, , drop = FALSE]
-      if (randintercept) {
-        Ji <- length(subj_ind)
-        V.subj <- matrix(HHat[1, s], nrow = Ji, ncol = Ji) +
-          diag(RHat[s], Ji)
-      } else {
-        V.subj <- Z[subj_ind, , drop = FALSE] %*%
-          Matrix::tcrossprod(cov.trimmed, Z[subj_ind, , drop = FALSE]) +
-          diag(RHat[s], length(subj_ind))
-      }
-
-      # Rfast provides a faster matrix inversion
-      V.subj.inv <- as.matrix(Rfast::spdinv(V.subj))
-
-      XTVinvX <- XTVinvX +
-        crossprod(matrix(designmat[subj.ind,], ncol = p), V.subj.inv) %*%
-        matrix(designmat[subj.ind,], ncol = p)
-
-      if (randintercept) {
-        XTVinvZ_i[[as.character(id)]] <- crossprod(
-          matrix(designmat[subj.ind,], ncol = p),
-          V.subj.inv
-        ) %*% matrix(1, nrow = Ji, ncol = 1)
-      } else {
-        XTVinvZ_i[[as.character(id)]] <- crossprod(
-          matrix(designmat[subj.ind, ], ncol = p),
-          V.subj.inv
-        ) %*% Z[subj.ind, , drop = FALSE]
-      }
-    }
-
-    var.beta.tilde.theo[, , s] <- as.matrix(Rfast::spdinv(XTVinvX))
-
-    return(
-      list(
-        XTViv = XTVinvZ_i,
-        var.beta.tilde.theo = var.beta.tilde.theo[,,s]
-      )
-    )
-  }
-
-  # Fit massively univariate mixed models
+  # Parallelize the calculation
   if (parallel) {
     # Windows is incompatible with mclapply
     if(.Platform$OS.type == "windows") {
+      cl <- parallel::makePSOCKcluster(n_cores)
       # Provide necessary objects to the cluster
-      clusterExport(
-        cl = cl,
-        varlist = c(
-          "eigenval_trim",
-          "HHat",
-          "s",
-          "res_template",
-          "template_cols",
-          "p",
-          "ID.number",
-          "obs.ind",
-          "id",
-          "RHat"
-        ),
-        # Look within the function's environment
-        envir = environment()
-      )
-      if (!randintercept)
-        clusterExport(cl, "Z", envir = environment())
+      clusterExport(cl, "eigenval_trim", environment())
 
       # tryCatch ensures the cluster is stopped even during errors
       massVar <- tryCatch(
         parLapply(
           cl = cl,
           X = argvals,
-          fun = parallel_fn
+          FUN = var_parallel,
+          mc.cores = n_cores,
+          fmm = fmm,
+          mum = mum,
+          Z = Z,
+          RHat = RHat,
+          HHat = HHat,
+          id_list = id_list,
+          obs_ind = obs_ind,
+          res_template = res_template
         ),
         warning = function(w) {
           print(
@@ -286,35 +206,51 @@ var_analytic <- function(
       # if not Windows, use mclapply
       massVar <- parallel::mclapply(
         X = argvals,
-        FUN = parallel_fn,
-        mc.cores = num_cores
+        FUN = var_parallel,
+        mc.cores = n_cores,
+        fmm = fmm,
+        mum = mum,
+        Z = Z,
+        RHat = RHat,
+        HHat = HHat,
+        id_list = id_list,
+        obs_ind = obs_ind,
+        res_template = res_template
       )
     }
   } else {
     massVar <- lapply(
       argvals,
-      parallel_fn
+      var_parallel,
+      fmm = fmm,
+      mum = mum,
+      Z = Z,
+      RHat = RHat,
+      HHat = HHat,
+      id_list = id_list,
+      obs_ind = obs_ind,
+      res_template = res_template
     )
   }
 
   XTVinvZ_all <- lapply(argvals, function(s)
-    massVar[[s]]$XTViv[lengths(massVar[[s]]$XTViv) != 0])
-  var.beta.tilde.theo <- lapply(argvals, function(s)
-    massVar[[s]]$var.beta.tilde.theo)
-  var.beta.tilde.theo <- array(
-    simplify2array(var.beta.tilde.theo), dim = c(p, p, L)
+    massVar[[s]]$XTVinv[lengths(massVar[[s]]$XTVinv) != 0])
+  betaTilde_theo_var <- lapply(argvals, function(s)
+    massVar[[s]]$betaTilde_theo_var)
+  betaTilde_theo_var <- array(
+    simplify2array(betaTilde_theo_var), dim = c(p, p, L)
   )
 
   suppressWarnings(rm(massVar, resStart, res_template, template_cols))
 
   # Calculate the inter-location covariance of betaTilde:
   # Cov(betaTilde(s_1), betaTilde(s_2))
-  ## Create cov.beta.tilde.theo to store covariance of betaTilde
-  cov.beta.tilde.theo <- array(NA, dim = c(p,p,L,L))
+  ## Create betaTilde_theo_cov to store covariance of betaTilde
+  betaTilde_theo_cov <- array(NA, dim = c(p, p, L, L))
   if (randintercept) {
-    resStart <- cov_organize_start(GHat[1,2]) # arbitrarily start
+    resStart <- cov_organize_start(GHat[1, 2]) # arbitrarily start
   } else {
-    resStart <- cov_organize_start(GHat[,1,2]) # arbitrarily start
+    resStart <- cov_organize_start(GHat[, 1, 2]) # arbitrarily start
   }
 
   # 2.1 First step =============================================================
@@ -326,7 +262,6 @@ var_analytic <- function(
   ## Calculate Cov(betaTilde) for each pair of location
   for (i in 1:L) {
     for (j in i:L) {
-      V.cov.subj <- list()
       tmp <- matrix(0, nrow = p, ncol = p) ## store intermediate part
       if (randintercept) {
         G_use <- GHat[i, j]
@@ -336,22 +271,20 @@ var_analytic <- function(
         )
       }
 
-      for (id in ID.number) {
+      for (id in id_list) {
         tmp <- tmp +
           XTVinvZ_all[[i]][[as.character(id)]] %*%
           tcrossprod(G_use, XTVinvZ_all[[j]][[as.character(id)]])
       }
 
       ## Calculate covariance using XTVinvX and tmp to save memory
-      cov.beta.tilde.theo[, , i, j] <- var.beta.tilde.theo[, , i] %*%
+      betaTilde_theo_cov[, , i, j] <- betaTilde_theo_var[, , i] %*%
         tmp %*%
-        var.beta.tilde.theo[, , j]
+        betaTilde_theo_var[, , j]
     }
   }
   suppressWarnings(
     rm(
-      V.subj,
-      V.cov.subj,
       Z,
       XTVinvZ_all,
       resStart,
@@ -365,14 +298,14 @@ var_analytic <- function(
   if (!silent) print("Step 3.3: Second step")
 
   # Intermediate step for covariance estimate
-  var.beta.tilde.s <- array(NA, dim = c(L, L, p))
+  betaTilde_var_s <- array(NA, dim = c(L, L, p))
   for(j in 1:p) {
     for(r in 1:L) {
       for(t in 1:L) {
         if (t == r) {
-          var.beta.tilde.s[r,t,j] <- var.beta.tilde.theo[j, j, r]
+          betaTilde_var_s[r, t, j] <- betaTilde_theo_var[j, j, r]
         } else {
-          var.beta.tilde.s[r,t,j] <- cov.beta.tilde.theo[
+          betaTilde_var_s[r, t, j] <- betaTilde_theo_cov[
             j, j, min(r, t), max(r, t)
           ]
         }
@@ -382,18 +315,17 @@ var_analytic <- function(
 
   # Calculate the inter-location covariance of betaHat:
   # Cov(betaHat(s_1), betaHat(s_2))
-  var.beta.hat <- array(NA, dim = c(L, L, p))
+  betaHat_var <- array(NA, dim = c(L, L, p))
   for(r in 1:p) {
     M <- B %*%
       Matrix::tcrossprod(
         solve(Matrix::crossprod(B) + lambda[r] * S), B
       ) +
-      matrix(1/L, nrow = L, ncol = L)
-    var.raw <- M %*% Matrix::tcrossprod(var.beta.tilde.s[, , r], M)
+      matrix(1 / L, nrow = L, ncol = L)
+    raw_var <- M %*% Matrix::tcrossprod(betaTilde_var_s[, , r], M)
     ## trim eigenvalues to make final variance matrix PSD
-    var.beta.hat[,,r] <- eigenval_trim(var.raw)
+    betaHat_var[, , r] <- eigenval_trim(raw_var)
   }
-  betaHat.var <- var.beta.hat ## final estimate
 
   # Obtain qn to construct joint CI
   qn <- rep(0, length = nrow(betaHat))
@@ -402,7 +334,7 @@ var_analytic <- function(
   set.seed(seed)
 
   for(i in 1:length(qn)) {
-    Sigma <- betaHat.var[, , i]
+    Sigma <- betaHat_var[, , i]
     sqrt_Sigma <- sqrt(diag(Sigma))
     S_scl <- Matrix::Diagonal(x = 1 / sqrt_Sigma)
     Sigma <- as.matrix(S_scl %*% Sigma %*% S_scl)
@@ -426,7 +358,7 @@ var_analytic <- function(
   return(
     list(
       betaHat = betaHat,
-      betaHat.var = betaHat.var,
+      betaHat_var = betaHat_var,
       qn = qn,
       aic = mum$AIC_mat,
       betaTilde = mum$betaTilde,

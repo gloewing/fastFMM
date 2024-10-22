@@ -13,6 +13,7 @@ var_analytic(
   nknots_cov,
   seed,
   parallel,
+  n_cores,
   silent
 )
 }
@@ -32,6 +33,8 @@ var_analytic(
 \item{seed}{Integer random seed}
 
 \item{parallel}{Logical, whether to use parallel processing}
+
+\item{n_cores}{Integer number of cores for parallelization}
 
 \item{silent}{Logical, suppresses messages when `TRUE`. Passed from `fui`.}
 }

@@ -193,7 +193,7 @@ G_generate.fastFMMconc <- function(fmm, mum, i, j, MoM = 1) {
   for (k in 1:nrow(RE_table)) {
     re_name <-  RE_table[k, 1] # random effects
     var1_i <- RE_table$var1[k]
-    var1_j <- gsub(paste0("\\_", i, "$"), paste0("\\_", j), var1)
+    var1_j <- gsub(paste0("\\_", i, "$"), paste0("\\_", j), var1_i)
     nm1_i <- paste0(re_name, ".",  var1_i) # name of Z_lst (outputted by lme4 getME() )
     nm1_j <- paste0(re_name, ".", var1_j)
 

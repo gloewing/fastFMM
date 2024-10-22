@@ -70,6 +70,7 @@ unimm.fastFMMconc <- function(fmm, l) {
 
   # Get the nonfunctional variables
   all_vars <- all.vars(fmm$formula)
+  fun_covariates <- fmm$fun_covariates
   nonfun_covariates <- all_vars[
     !all_vars %in% c(fmm$fun_covariates, form[2])
   ]

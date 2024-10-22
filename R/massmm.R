@@ -135,6 +135,7 @@ massmm.fastFMM <- function(fmm, parallel, n_cores) {
 massmm.fastFMMconc <- function(fmm, parallel, n_cores) {
   # Generate the univariate fits
   mass_list <- massmm_apply(fmm, parallel, n_cores)
+  # print(mass_list)
   res <- massmm_outs(mass_list, fmm)
   res$analytic <- fmm$analytic
 
@@ -197,6 +198,10 @@ massmm.fastFMMconc <- function(fmm, parallel, n_cores) {
     nrow(mass_list[[1]][["varcorr_df"]]) == 1 &
       mass_list[[1]][["varcorr_df"]][1, "var1"] == "(Intercept)"
   )
+
+  data <- fmm$data
+  form <- as.character(fmm$formula)
+  out_index <- grep(paste0("^", form[2]), names(data))
 
   # Check for what needs to be returned
   # This will get passed to smoothing
@@ -316,14 +321,6 @@ massmm_outs <- function(mass_list, fmm) {
   sigmausqHat <- var_random[
     which(rownames(var_random) != "var.Residual"), , drop = FALSE
   ]
-  # HHat <- t(
-  #   apply(
-  #     sigmausqHat, 1,
-  #     function(b) stats::smooth.spline(x = argvals, y = b)$y
-  #   )
-  # )
-  # ind_var <- which(grepl("var", rownames(HHat)) == TRUE)
-  # HHat[ind_var, ][which(HHat[ind_var, ] < 0)] <- 0
 
   return(
     list(
