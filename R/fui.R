@@ -1524,6 +1524,7 @@ fui <- function(
           family = family,
           argvals = argvals,
           var = FALSE,
+          analytic = FALSE,
           parallel = FALSE,
           silent = TRUE,
           nknots_min = nknots_min,
