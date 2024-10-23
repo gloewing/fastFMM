@@ -226,12 +226,12 @@ fui <- function(
     )
   )
   col_var <- Rfast::colVars(as.matrix(temp))
-  col_var_zeroes <- which(col_var == 0)
+  col_var_zero <- which(col_var == 0)
 
-  if (length(col_var_zeros) > 0) {
+  if (length(col_var_zero) > 0) {
     stop(
       "Columns with zero variance: ",
-      paste0(names(temp)[col_var_zeroes], collapse = ", "), "\n",
+      paste0(names(temp)[col_var_zero], collapse = ", "), "\n",
       "Model-fitting cannot continue due to non-identifiability."
     )
   }
