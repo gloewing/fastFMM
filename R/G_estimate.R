@@ -184,6 +184,7 @@ G_estimate.fastFMMconc <- function(
     print("Step 3.1.1: Method of Moments Covariance Estimator")
 
   # Dummy
+  data <- fmm$data
   data_cov <- G_generate(fmm, mum, 1, 1)
   L <- length(fmm$argvals)
   GTilde <- array(NA, dim = c(nrow(HHat), L, L))
