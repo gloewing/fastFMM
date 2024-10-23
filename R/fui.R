@@ -138,7 +138,7 @@ fui <- function(
   randeffs = FALSE,
   non_neg = 0,
   MoM = 1,
-  concurrent = FALSE
+  concurrent = FALSE,
   impute_outcome = FALSE
 ) {
 
