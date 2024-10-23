@@ -8,3 +8,7 @@ rebuild_exports\.Rmd
 fui_conc\.Rmd
 ^\.gitignore$
 ^\.github/
+^.*\_oop\.*
+^.*\_conc\.*
+^.*\-NOTES\.*
+^data/

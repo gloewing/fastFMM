@@ -15,6 +15,9 @@
 #' @importFrom stats cov var
 #' @export
 
+# Derive covariance estimates of random components: G(s1,s2)
+### Create a function that estimates covariance G for random intercepts
+
 G_estimate_randint <- function(
   fmm,
   designmat,
@@ -30,7 +33,7 @@ G_estimate_randint <- function(
   L <- length(fmm$argvals)
   # Check if concurrent
   if (!is.null(fmm$fun_covariates))
-      # Should bne identical if only random intercept
+      # Should be identical if only random intercept
       designmat <- designmat[[1]]
   GTilde <- matrix(NA, nrow = L, ncol = L)
   vdm <- Matrix::crossprod(betaHat, stats::var(designmat) %*% betaHat)

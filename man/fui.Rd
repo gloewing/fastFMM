@@ -28,7 +28,8 @@ fui(
   randeffs = FALSE,
   non_neg = 0,
   MoM = 1,
-  concurrent = FALSE
+  concurrent = FALSE,
+  impute_outcome = FALSE
 )
 }
 \arguments{
@@ -110,7 +111,8 @@ average of coefficents for 1 variance term. Defaults to 0.}
 Defaults to \code{FALSE}.}
 
 \item{impute_outcome}{Logical, indicating whether to impute missing outcome
-values with FPCA. Defaults to \code{FALSE}.}
+values with FPCA. This has not been tested thoroughly so use with caution.
+Defaults to \code{FALSE}.}
 }
 \value{
 A list containing:

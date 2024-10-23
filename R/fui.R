@@ -68,7 +68,8 @@
 #' average of coefficents for 1 variance term. Defaults to 0.
 #' @param MoM Method of moments estimator. Defaults to 1.
 #' @param impute_outcome Logical, indicating whether to impute missing outcome
-#' values with FPCA. Defaults to \code{FALSE}.
+#' values with FPCA. Defaults to \code{FALSE}. Use with caution as the
+#' downstream effects are not tested.
 #' @param concurrent Logical, indicating whether to fit a concurrent model.
 #' Defaults to \code{FALSE}.
 #'
@@ -138,6 +139,7 @@ fui <- function(
   non_neg = 0,
   MoM = 1,
   concurrent = FALSE
+  impute_outcome = FALSE
 ) {
 
   # 0. Setup ###################################################################
@@ -262,15 +264,23 @@ fui <- function(
 
   out_index <- fmm$out_index
   missing_rows <- which(rowSums(is.na(data[, out_index])) != 0)
+
+  # Fill in missing values of functional outcome using FPCA
+  # rows with missing outcome values
+  missing_rows <- which(rowSums(is.na(data[, out_index])) != 0 )
+
   if (length(missing_rows) != 0) {
     if(analytic & impute_outcome){
       message(
         paste(
-          "Imputing", length(out_index),
+          "Imputing", sum(is.na(data[, out_index])),
           "values in functional response with longitudinal functional PCA"
         )
       )
       if (length(out_index) != 1) {
+        nknots_fpca <- min(round(length(out_index) / 2), 35)
+        if (is.null(argvals) | analytic)
+          argvals <- 1:length(out_index)
         tmp <- as.matrix(data[, out_index])
         tmp[which(is.na(tmp))] <- suppressWarnings(
           refund::fpca.face(
@@ -292,14 +302,14 @@ fui <- function(
     } else if (analytic & !impute_outcome) {
       message(
         paste(
-          "Removing", missing_rows,
+          "Removing", length(missing_rows),
           "rows with missing functional outcome values.", "\n",
-          "To impute missing outcome values with FPCA, set fui() argument:",
+          "To impute missing outcome values with FPCA, set fui() argument: \n",
           "impute_outcome = TRUE"
         )
       )
       # remove data with missing rows
-      data[, out_index] <- data[-missing_rows, out_index]
+      data <- data[-missing_rows, ]
     }
     fmm$data <- data
   }
@@ -445,9 +455,8 @@ fui <- function(
     var_res <- var_bootstrap(mum)
   }
 
-  # AX: dumb workaround
+  # AX: Can't really remove this at any other point
   if (!design_mat) var_res$designmat <- NULL
 
   return(var_res)
-
 }
