@@ -4,16 +4,12 @@
 \alias{G_estimate_randint}
 \title{Special case of estimating covariance of random components G(s1, s2)}
 \usage{
-G_estimate_randint(data, L, out_index, designmat, betaHat, silent = TRUE)
+G_estimate_randint(fmm, designmat, betaHat, silent = TRUE)
 }
 \arguments{
-\item{data}{A data frame containing all variables in formula}
+\item{fmm}{"fastFMM" object.}
 
-\item{L}{Number of columns of outcome variables}
-
-\item{out_index}{Indices that contain the outcome variables}
-
-\item{designmat}{Design matrix of the linear models}
+\item{designmat}{Design matrix of the linear models. A list if concurrent.}
 
 \item{betaHat}{Estimated functional fixed effects}
 
@@ -24,6 +20,6 @@ Defaults to `TRUE`.}
 An estimation of the G matrix
 }
 \description{
-Estimates the covariance matrix G for random intercepts that occurs at Step 3
-of the FUI method. A helper function for `fui`.
+Estimates the covariance matrix G at Step 3. If the only random effect is an
+intercept, we can use a speedup.
 }

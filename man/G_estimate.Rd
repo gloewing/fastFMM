@@ -2,57 +2,20 @@
 % Please edit documentation in R/G_estimate.R
 \name{G_estimate}
 \alias{G_estimate}
-\title{Estimate covariance of random components G(s1, s2)}
+\title{Generic "G_estimate" dispatch}
 \usage{
-G_estimate(
-  data,
-  L,
-  out_index,
-  data_cov,
-  ztlist,
-  designmat,
-  betaHat,
-  HHat,
-  RE_table,
-  non_neg = 1,
-  MoM = 2,
-  silent = TRUE
-)
+G_estimate(fmm, ...)
 }
 \arguments{
-\item{data}{A data frame containing all variables in formula}
+\item{fmm}{"An object that inherits from the "massmm" class"fastFMM object.}
 
-\item{L}{Number of columns of outcome variables}
-
-\item{out_index}{Indices that contain the outcome variables}
-
-\item{data_cov}{(unsure) A matrix of covariance of the data}
-
-\item{ztlist}{A list of the design matrices corresponding to random effects}
-
-\item{designmat}{Design matrix of the linear models}
-
-\item{betaHat}{Estimated functional fixed effects}
-
-\item{HHat}{(unsure)}
-
-\item{RE_table}{(unsure) A data frame containing point estimates of random effects}
-
-\item{non_neg}{(unsure)}
-
-\item{MoM}{Controls method of moments estimator}
-
-\item{silent}{Whether to print the step description during calculations.
-Defaults to `TRUE`.}
+\item{...}{Additional arguments}
 }
 \value{
 An estimation of the G matrix
 }
 \description{
-Estimates the covariance matrix G for random intercepts that occurs at Step 3
-of the FUI method. Applies when `G_generate` cannot provide an analytic
-solution.
-}
-\details{
-A helper function for `fui`.
+Estimates covariance of random components. The related function for the
+random intercept flag (`G_estimate_randint`) does not require a generic
+because the operations are the same for concurrent and non-concurrent models.
 }

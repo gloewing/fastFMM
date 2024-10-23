@@ -5,6 +5,7 @@
 *NOTES.R
 *.Rproj
 rebuild.Rmd
+rebuild_exports.Rmd
 fui_conc.Rmd
 *oop.R
 data/

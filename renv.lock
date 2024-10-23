@@ -11,13 +11,13 @@
   "Packages": {
     "FNN": {
       "Package": "FNN",
-      "Version": "1.1.4",
+      "Version": "1.1.4.1",
       "Source": "Repository",
       "Repository": "CRAN",
       "Requirements": [
         "R"
       ],
-      "Hash": "eaabdc7938aa3632a28273f53a0d226d"
+      "Hash": "c7b4a49c7f435d0a67bb1e127e953d75"
     },
     "HLMdiag": {
       "Package": "HLMdiag",
@@ -151,7 +151,7 @@
     },
     "RcppArmadillo": {
       "Package": "RcppArmadillo",
-      "Version": "14.0.0-1",
+      "Version": "14.0.2-1",
       "Source": "Repository",
       "Repository": "CRAN",
       "Requirements": [
@@ -161,7 +161,7 @@
         "stats",
         "utils"
       ],
-      "Hash": "a711769be34214addf7805278b72d56b"
+      "Hash": "edff747eebfb8f2e18eed194e000caa1"
     },
     "RcppEigen": {
       "Package": "RcppEigen",
@@ -229,7 +229,7 @@
     },
     "abind": {
       "Package": "abind",
-      "Version": "1.4-5",
+      "Version": "1.4-8",
       "Source": "Repository",
       "Repository": "CRAN",
       "Requirements": [
@@ -237,7 +237,7 @@
         "methods",
         "utils"
       ],
-      "Hash": "4f57884290cc75ab22f4af9e9d4ca862"
+      "Hash": "2288423bb0f20a457800d7fc47f6aa54"
     },
     "ash": {
       "Package": "ash",
@@ -248,10 +248,10 @@
     },
     "bitops": {
       "Package": "bitops",
-      "Version": "1.0-8",
+      "Version": "1.0-9",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "da69e6b6f8feebec0827205aad3fdbd8"
+      "Hash": "d972ef991d58c19e6efa71b21f5e144b"
     },
     "boot": {
       "Package": "boot",
@@ -369,19 +369,20 @@
     },
     "distributional": {
       "Package": "distributional",
-      "Version": "0.4.0",
+      "Version": "0.5.0",
       "Source": "Repository",
       "Repository": "CRAN",
       "Requirements": [
         "generics",
         "lifecycle",
         "numDeriv",
+        "pillar",
         "rlang",
         "stats",
         "utils",
         "vctrs"
       ],
-      "Hash": "3bad76869f2257ea4fd00a3c08c2bcce"
+      "Hash": "76e94de462aa18ea966a38956ecf4497"
     },
     "dplyr": {
       "Package": "dplyr",
@@ -427,7 +428,7 @@
     },
     "fda": {
       "Package": "fda",
-      "Version": "6.1.8",
+      "Version": "6.2.0",
       "Source": "Repository",
       "Repository": "CRAN",
       "Requirements": [
@@ -436,7 +437,7 @@
         "fds",
         "splines"
       ],
-      "Hash": "8e1d18230ae26759bb837602300f5607"
+      "Hash": "82841f75a8e340ba660c006e01d2ca1e"
     },
     "fds": {
       "Package": "fds",
@@ -542,7 +543,7 @@
     },
     "ggrepel": {
       "Package": "ggrepel",
-      "Version": "0.9.5",
+      "Version": "0.9.6",
       "Source": "Repository",
       "Repository": "CRAN",
       "Requirements": [
@@ -554,18 +555,18 @@
         "scales",
         "withr"
       ],
-      "Hash": "cc3361e234c4a5050e29697d675764aa"
+      "Hash": "3d4156850acc1161f2f24bc61c9217c1"
     },
     "glue": {
       "Package": "glue",
-      "Version": "1.7.0",
+      "Version": "1.8.0",
       "Source": "Repository",
       "Repository": "CRAN",
       "Requirements": [
         "R",
         "methods"
       ],
-      "Hash": "e0b3a53876554bd45879e596cdb10a52"
+      "Hash": "5899f1eaa825580172bb56c08266f37c"
     },
     "gridExtra": {
       "Package": "gridExtra",
@@ -686,7 +687,7 @@
     },
     "ks": {
       "Package": "ks",
-      "Version": "1.14.2",
+      "Version": "1.14.3",
       "Source": "Repository",
       "Repository": "CRAN",
       "Requirements": [
@@ -701,7 +702,7 @@
         "mvtnorm",
         "pracma"
       ],
-      "Hash": "1782bbb79e4d66ed67012910204953f6"
+      "Hash": "a8ca08fe0fbcd6223b782e991960392c"
     },
     "labeling": {
       "Package": "labeling",
@@ -1103,7 +1104,7 @@
     },
     "refund": {
       "Package": "refund",
-      "Version": "0.1-35",
+      "Version": "0.1-37",
       "Source": "Repository",
       "Repository": "CRAN",
       "Requirements": [
@@ -1126,7 +1127,7 @@
         "splines",
         "stats"
       ],
-      "Hash": "f2882b8f96bf766a22266ffbfc6fdabb"
+      "Hash": "b4428a14e69cc7d6d56933a8770153a8"
     },
     "renv": {
       "Package": "renv",
