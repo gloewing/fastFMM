@@ -204,6 +204,36 @@ fui <- function(
     MoM <- 1
   }
 
+  # 0.0 Identifiability checks ==================================================
+
+  all_vars <- all.vars(formula)
+  out_index <- grep(
+    paste0("^(", paste0(all_vars, collapse = "|"), ")"),
+    names(data)
+  )
+  temp <- data[, out_index]
+  # Coerce characters, like IDs, to numerics
+  temp <- data.frame(
+    lapply(
+      temp,
+      function(col) {
+        if (is.numeric(col))
+          return(col)
+        as.numeric(as.factor(col))
+      }
+    )
+  )
+  col_var <- Rfast::colVars(as.matrix(temp))
+  col_var_zeroes <- which(col_var == 0)
+
+  if (length(col_var_zeros) > 0) {
+    stop(
+      "Columns with zero variance: ",
+      paste0(names(temp)[col_var_zeroes], collapse = ", "), "\n",
+      "Model-fitting cannot continue due to non-identifiability."
+    )
+  }
+
   # 0.2 Create the reference object ============================================
 
   fmm_params <- list(

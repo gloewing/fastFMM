@@ -11,7 +11,7 @@
 #' @param L integer, number of points on functional domain
 #' @param num_boots Integer, number of bootstrap replications.
 #' @param parallel Logical, whether to use parallel processing
-#' @param num_cores Integer, number of cores for parallelization.
+#' @param n_cores Integer, number of cores for parallelization.
 #' @param smooth_method Character, passed from `fui`
 #' @param splines Character, passed from `fui`
 #' @param silent Logical, suppresses messages when `TRUE`. Passed from `fui`.
@@ -35,7 +35,7 @@ var_bootstrap <- function(
   L,
   num_boots,
   parallel,
-  num_cores,
+  n_cores,
   smooth_method,
   splines,
   silent
@@ -123,7 +123,7 @@ var_bootstrap <- function(
         splines = splines,
         residuals = umm$residuals,
         subj_id = mum$subj_id,
-        num_cores = num_cores,
+        n_cores = n_cores,
         REs = FALSE
       )
 
