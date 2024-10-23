@@ -278,7 +278,7 @@ massmm_apply <- function(fmm, parallel, n_cores = 1) {
       stopCluster(cl)
     },
     finally = {
-      if (!silent) print("Finished fitting univariate models.")
+      # if (!silent) print("Finished fitting univariate models.")
       stopCluster(cl)
     }
   )

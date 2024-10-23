@@ -258,8 +258,6 @@ fui <- function(
     fmm <- do.call(new_fastFMMconc, fmm_params)
   }
 
-  print(fmm$fun_covariates)
-
   # 0.3 Impute missing values ==================================================
 
   out_index <- fmm$out_index
