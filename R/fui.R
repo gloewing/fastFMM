@@ -268,7 +268,7 @@ fui <- function(
   missing_rows <- which(rowSums(is.na(data[, out_index])) != 0 )
 
   if (length(missing_rows) != 0) {
-    if(analytic & impute_outcome){
+    if(analytic & impute_outcome) {
       message(
         paste(
           "Imputing", sum(is.na(data[, out_index])),
