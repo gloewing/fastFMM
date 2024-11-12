@@ -14,7 +14,7 @@ var_bootstrap(
   L,
   num_boots,
   parallel,
-  num_cores,
+  n_cores,
   smooth_method,
   splines,
   silent
@@ -39,7 +39,7 @@ var_bootstrap(
 
 \item{parallel}{Logical, whether to use parallel processing}
 
-\item{num_cores}{Integer, number of cores for parallelization.}
+\item{n_cores}{Integer, number of cores for parallelization.}
 
 \item{smooth_method}{Character, passed from `fui`}
 

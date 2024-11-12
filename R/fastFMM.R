@@ -187,3 +187,22 @@ print.fastFMM <- function(fmm) {
     "Size of functional domain in fit: ", length(fmm$argvals), "\n"
   )
 }
+
+#' Printing the fastFMMconc object
+#'
+#' Simple method to look at the relevant fields.
+#'
+#' @param fmm Object to print
+#'
+#' @return Basic list of entries
+#' @method print fastFMM
+#' @export
+
+print.fastFMMconc <- function(fmm) {
+  paste0(
+    "Formula: ", fmm$formula, "\n",
+    "Data dimensions: ", dim(fmm$data), "\n",
+    "Total size of functional domain: ", length(fmm$out_index), "\n",
+    "Size of functional domain in fit: ", length(fmm$argvals), "\n"
+  )
+}

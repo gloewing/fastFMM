@@ -141,6 +141,7 @@ var_analytic <- function(
 
   # Concatenate vector of 1s to Z because used that way below
   HHat_trim <- NA
+
   if (!randintercept) {
     Z <- data_cov$Z_orig
     if (is.null(Z)) Z <- data_cov$Z # Concurrent case
@@ -170,8 +171,7 @@ var_analytic <- function(
         parLapply(
           cl = cl,
           X = argvals,
-          FUN = var_parallel,
-          mc.cores = n_cores,
+          fun = var_parallel,
           fmm = fmm,
           mum = mum,
           Z = Z,
@@ -184,8 +184,7 @@ var_analytic <- function(
         warning = function(w) {
           print(
             paste0(
-              "Warning when parallelizing variance calculation:", "\n",
-              w
+              "Warning when parallelizing variance calculation:", "\n", w
             )
           )
         },

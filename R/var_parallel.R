@@ -49,6 +49,7 @@ var_parallel.fastFMM <- function(
   res_template
 ) {
   # Setup parameters
+  print("Check 0")
   V_subj_inv <- c()
   randintercept <- mum$randintercept
   designmat <- mum$designmat
@@ -92,6 +93,7 @@ var_parallel.fastFMM <- function(
     XTVinvX <- XTVinvX +
       crossprod(matrix(designmat[subj_ind,], ncol = p), V_subj_inv) %*%
       matrix(designmat[subj_ind,], ncol = p)
+
 
     if (randintercept) {
       XTVinvZ_i[[as.character(id)]] <- crossprod(

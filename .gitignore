@@ -6,6 +6,8 @@
 *.Rproj
 rebuild.Rmd
 rebuild_exports.Rmd
+rebuild_0.Rmd
+demo.Rmd
 fui_conc.Rmd
 *oop.R
 data/
