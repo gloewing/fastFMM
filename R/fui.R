@@ -67,11 +67,15 @@
 #' constraints on every coefficient for variance, 2 - non-negativity on
 #' average of coefficents for 1 variance term. Defaults to 0.
 #' @param MoM Method of moments estimator. Defaults to 1.
-#' @param impute_outcome Logical, indicating whether to impute missing outcome
+#' @param concurrent Logical, indicates whether to fit a concurrent model.
+#' Defaults to \code{FALSE}.
+#' @param impute_outcome Logical, indicates whether to impute missing outcome
 #' values with FPCA. Defaults to \code{FALSE}. Use with caution as the
 #' downstream effects are not tested.
-#' @param concurrent Logical, indicating whether to fit a concurrent model.
-#' Defaults to \code{FALSE}.
+#' @param override_zero_var Logical, indicates whether to proceed with model
+#' fitting if columns have zero variance. Suggested for cases where individual
+#' columns have zero variance but interactions have non-zero variance. Defaults
+#' to `FALSE`.
 #'
 #' @return A list containing:
 #' \item{betaHat}{Estimated functional fixed effects}
@@ -229,11 +233,12 @@ fui <- function(
   col_var_zero <- which(col_var == 0)
 
   if (length(col_var_zero) > 0) {
-    stop(
+    msg <- paste0(
       "Columns with zero variance: ",
       paste0(names(temp)[col_var_zero], collapse = ", "), "\n",
       "Model-fitting cannot continue due to non-identifiability."
     )
+    ifelse(override_zero_var, warning(msg), stop(msg))
   }
 
   # 0.2 Create the reference object ============================================
