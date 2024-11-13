@@ -49,7 +49,6 @@ var_parallel.fastFMM <- function(
   res_template
 ) {
   # Setup parameters
-  print("Check 0")
   V_subj_inv <- c()
   randintercept <- mum$randintercept
   designmat <- mum$designmat

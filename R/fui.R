@@ -183,7 +183,7 @@ fui <- function(
     x_names,
     function(x) length(grep(paste0("^", x), names(data)))
   )
-  fun_covariates <- NULL # Redundacy for clarity
+  fun_covariates <- NULL # redundancy
   fun_covariates <- unique(c(x_names[x_classes == "AsIs"], x_names[x_ncols == L]))
   fun_exists <- length(fun_covariates) > 0
   if (fun_exists)
