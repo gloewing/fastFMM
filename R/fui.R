@@ -143,7 +143,8 @@ fui <- function(
   non_neg = 0,
   MoM = 1,
   concurrent = FALSE,
-  impute_outcome = FALSE
+  impute_outcome = FALSE,
+  override_zero_var = FALSE
 ) {
 
   # 0. Setup ###################################################################
