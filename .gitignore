@@ -2,6 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+.DS_Store
 *NOTES.R
 *.Rproj
 rebuild.Rmd
