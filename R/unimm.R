@@ -24,15 +24,15 @@
 
 
 unimm <- function(
-    l,
-    data,
-    model_formula,
-    family,
-    residuals,
-    caic,
-    REs,
-    analytic
-  ){
+  l,
+  data,
+  model_formula,
+  family,
+  residuals,
+  caic,
+  REs,
+  analytic
+){
 
   out_index <- grep(paste0("^", model_formula[2]), names(data))
   data$Yl <- unclass(data[,out_index][,l])
@@ -73,7 +73,7 @@ unimm <- function(
   # random effects
   if(REs) re_df <- lme4::ranef(fit_uni)
 
-  if(analytic == TRUE) {
+  if(analytic) {
     varcorr <- as.data.frame(lme4::VarCorr(fit_uni))
     # Extract variance/covariance estimates
     var_random <- varcorr[,4]

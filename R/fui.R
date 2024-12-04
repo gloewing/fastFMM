@@ -23,9 +23,13 @@
 #' @param data A data frame containing all variables in formula
 #' @param family GLM family of the response. Defaults to \code{gaussian}.
 #' @param var Logical, indicating whether to calculate and return variance
-#' of the coefficient estimates. Defaults to \code{TRUE}.
-#' @param analytic Logical, indicating whether to use the analytic inferenc
-#' approach or bootstrap. Defaults to \code{TRUE}.
+#' of the coefficient estimates. See the `analytic` argument for how setting
+#' `var, analytic` affect the returned values.
+#' @param analytic Logical. When `analytic = T, var = T`, returns the analytic
+#' calculation of variance with Gaussian assumption. If `analytic = T, var = F`
+#' only the smoothed `HHat` matrix will be returned. Setting `analytic = F`
+#' proceeds with bootstrap variance calculation (`var = T` runs bootstrap, but
+#' `var = F` runs nothing except point estimates.)
 #' @param parallel Logical, indicating whether to do parallel computing.
 #' Defaults to \code{FALSE}.
 #' @param silent Logical, indicating whether to show descriptions of each step.
@@ -370,7 +374,7 @@ fui <- function(
     )
 
   ## random effects
-  if (analytic == TRUE) {
+  if (analytic) {
     if (REs) {
       randEff <- suppressMessages(
         simplify2array(
@@ -388,74 +392,77 @@ fui <- function(
     randEff <- se_mat <- NULL
   }
 
-  # Obtain variance estimates of random effects (analytic)
-  if (analytic == TRUE) {
+    if (analytic) {
+    # Prepare for HHat calculation
     var_random <- t(do.call(rbind, lapply(massmm, '[[', 'var_random')))
     sigmaesqHat <- var_random["var.Residual", , drop = FALSE]
     sigmausqHat <- var_random[
       which(rownames(var_random) != "var.Residual"), , drop = FALSE
     ]
 
-    # Fit a fake model to obtain design matrix
-    data$Yl <- unclass(data[,out_index][, 1])
-    if (family == "gaussian") {
-      fit_uni <- suppressMessages(
-        lmer(
-          formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
-          data = data,
-          control = lmerControl(optimizer = "bobyqa")
+    # Obtain variance estimates of random effects (analytic)
+    if (var) {
+      # Fit a fake model to obtain design matrix
+      data$Yl <- unclass(data[,out_index][, 1])
+      if (family == "gaussian") {
+        fit_uni <- suppressMessages(
+          lmer(
+            formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
+            data = data,
+            control = lmerControl(optimizer = "bobyqa")
+          )
         )
-      )
-    } else {
-      fit_uni <- suppressMessages(
-        glmer(
-          formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
-          data = data,
-          family = family,
-          control = glmerControl(optimizer = "bobyqa")
-        )
-      )
-    }
-
-    # Design matrix
-    designmat <- stats::model.matrix(fit_uni)
-    name_random <- as.data.frame(VarCorr(fit_uni))[
-      which(!is.na(as.data.frame(VarCorr(fit_uni))[, 3])), 3
-    ]
-
-    # Names of random effects
-    RE_table <- as.data.frame(VarCorr(fit_uni))
-    ranEf_grp <- RE_table[, 1]
-    RE_table <- RE_table[RE_table$grp != "Residual", 1:3]
-    ranEf_grp <- ranEf_grp[ranEf_grp != "Residual"]
-    ztlist <- sapply(getME(fit_uni, "Ztlist"), t)
-
-    # Check if group contains ":" (hierarchical structure) that requires the
-    # group to be specified
-
-    group <- massmm[[1]]$group ## group name in the data
-    if (grepl(":", group, fixed = TRUE)) {
-      if (is.null(subj_ID)) {
-        # Assumes the ID name is to the right of the ":"
-        group <- str_remove(group, ".*:")
       } else {
-        # Use user-specified ID if it exists
-        group <- subj_ID
+        fit_uni <- suppressMessages(
+          glmer(
+            formula = stats::as.formula(paste0("Yl ~ ", model_formula[3])),
+            data = data,
+            family = family,
+            control = glmerControl(optimizer = "bobyqa")
+          )
+        )
       }
+
+      # Design matrix
+      designmat <- stats::model.matrix(fit_uni)
+      name_random <- as.data.frame(VarCorr(fit_uni))[
+        which(!is.na(as.data.frame(VarCorr(fit_uni))[, 3])), 3
+      ]
+
+      # Names of random effects
+      RE_table <- as.data.frame(VarCorr(fit_uni))
+      ranEf_grp <- RE_table[, 1]
+      RE_table <- RE_table[RE_table$grp != "Residual", 1:3]
+      ranEf_grp <- ranEf_grp[ranEf_grp != "Residual"]
+      ztlist <- sapply(getME(fit_uni, "Ztlist"), t)
+
+      # Check if group contains ":" (hierarchical structure) that requires the
+      # group to be specified
+
+      group <- massmm[[1]]$group ## group name in the data
+      if (grepl(":", group, fixed = TRUE)) {
+        if (is.null(subj_ID)) {
+          # Assumes the ID name is to the right of the ":"
+          group <- str_remove(group, ".*:")
+        } else {
+          # Use user-specified ID if it exists
+          group <- subj_ID
+        }
+      }
+
+      if (is.null(subj_ID))
+        subj_ID <- group
+
+      # Condition for using G_estimate_randint
+
+      randint_flag <- I(
+        length(fit_uni@cnms) == 1 &
+          length(fit_uni@cnms[[group]]) == 1 &
+          fit_uni@cnms[[group]][1] == "(Intercept)"
+      )
+
+      rm(fit_uni)
     }
-
-    if (is.null(subj_ID))
-      subj_ID <- group
-
-    # Condition for using G_estimate_randint
-
-    randint_flag <- I(
-      length(fit_uni@cnms) == 1 &
-      length(fit_uni@cnms[[group]]) == 1 &
-      fit_uni@cnms[[group]][1] == "(Intercept)"
-    )
-
-    rm(fit_uni)
   }
 
   # 2. Smoothing ###############################################################
@@ -470,8 +477,19 @@ fui <- function(
   nknots_cov <- ifelse(is.null(nknots_min_cov), 35, nknots_min_cov)
   nknots_fpca <- min(round(L / 2), 35)
 
+  #
   # Smoothing parameter, spline basis, penalty matrix (analytic)
   if (analytic) {
+    # Smooth HHat coefficient estimates
+    HHat <- t(
+      apply(
+        sigmausqHat, 1,
+        function(b) stats::smooth.spline(x = argvals, y = b)$y
+      )
+    )
+    ind_var <- which(grepl("var", rownames(HHat)) == TRUE)
+    HHat[ind_var, ][which(HHat[ind_var, ] < 0)] <- 0
+
     p <- nrow(betaTilde) # Number of fixed effects parameters
     betaHat <- matrix(NA, nrow = p, ncol = L)
     lambda <- rep(NA, p)
@@ -485,14 +503,17 @@ fui <- function(
       lambda[r] <- fit_smooth$sp # Smoothing parameter
     }
 
-    sm <- smoothCon(
-      s(argvals, bs = splines, k = (nknots + 1)),
-      data = data.frame(argvals = argvals),
-      absorb.cons = TRUE
-    )
-    S <- sm[[1]]$S[[1]] # Penalty matrix
-    B <- sm[[1]]$X # Basis functions
-    rm(fit_smooth, sm)
+    if (var) {
+      sm <- smoothCon(
+        s(argvals, bs = splines, k = (nknots + 1)),
+        data = data.frame(argvals = argvals),
+        absorb.cons = TRUE
+      )
+      S <- sm[[1]]$S[[1]] # Penalty matrix
+      B <- sm[[1]]$X # Basis functions
+      rm(sm)
+    }
+    rm(fit_smooth)
   } else {
     betaHat <- t(
       apply(
@@ -513,7 +534,7 @@ fui <- function(
   # Variance ################################################################
 
   # End the function call if no variance calculation is required
-  if (var == FALSE) {
+  if (!var) {
     if (!silent) {
       message(
         paste0(
@@ -523,7 +544,27 @@ fui <- function(
         )
       )
     }
-    return(list(betaHat = betaHat, argvals = argvals, aic = AIC_mat))
+
+    # Return HHat if analytic
+    if (analytic) {
+      return(
+        list(
+          betaHat = betaHat,
+          HHat = HHat,
+          argvals = argvals,
+          aic = AIC_mat
+        )
+      )
+    } else {
+      return(
+        list(
+          betaHat = betaHat,
+          argvals = argvals,
+          aic = AIC_mat
+        )
+      )
+    }
+
   }
 
   # 3. Analytic inference #####################################################

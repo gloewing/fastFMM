@@ -42,10 +42,14 @@ of the longitudinal functional observations on the domain.}
 \item{family}{GLM family of the response. Defaults to \code{gaussian}.}
 
 \item{var}{Logical, indicating whether to calculate and return variance
-of the coefficient estimates. Defaults to \code{TRUE}.}
+of the coefficient estimates. See the `analytic` argument for how setting
+`var, analytic` affect the returned values.}
 
-\item{analytic}{Logical, indicating whether to use the analytic inferenc
-approach or bootstrap. Defaults to \code{TRUE}.}
+\item{analytic}{Logical. When `analytic = T, var = T`, returns the analytic
+calculation of variance with Gaussian assumption. If `analytic = T, var = F`
+only the smoothed `HHat` matrix will be returned. Setting `analytic = F`
+proceeds with bootstrap variance calculation (`var = T` runs bootstrap, but
+`var = F` runs nothing except point estimates.)}
 
 \item{parallel}{Logical, indicating whether to do parallel computing.
 Defaults to \code{FALSE}.}
