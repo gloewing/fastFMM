@@ -42,4 +42,5 @@ The example data set is available in the 'vignettes' folder under the name 'time
 
 ## Calling fastFMM from Python
 
-See the Python version of [Photometry FLMM Guide Part I](https://github.com/gloewing/photometry_FLMM/blob/main/Tutorials/Photometry%20FLMM%20Guide%20Part%20I/fastFMM-photometry-binary.ipynb) for an example of using `fastFMM` in Python through the Python packages `rpy2` and `fast_fmm_rpy2`. The tutorial assumes the `fastFMM` R package (and all its dependenices), and the `rpy2` Python package have already been installed, but we are working on more documentation for how to install and set up these packages for Python users.  Even if you intend to use the package purely within Python, it may be helpful to first install `fastFMM` from within RStudio to ensure all package dependenices are installed automatically. Finally, see 'python_fastFMM_vignette.py' in the [Github repo](https://github.com/gloewing/photometry_FLMM/tree/main/Tutorials) for a very brief example of using `fastFMM` on Python through the Python package `rpy2`. 
+See the README on the associated Github page [photometry_FLMM
+](https://github.com/gloewing/photometry_FLMM) for detailed notes on using `fastFMM` in Python through the Python packages `rpy2` and `fast_fmm_rpy2`.
