@@ -43,4 +43,4 @@ The example data set is available in the 'vignettes' folder under the name 'time
 ## Calling fastFMM from Python
 
 See the README on the associated Github page [photometry_FLMM
-](https://github.com/gloewing/photometry_FLMM) for detailed notes on using `fastFMM` in Python through the Python packages `rpy2` and `fast_fmm_rpy2`.
+](https://github.com/gloewing/photometry_FLMM) for instructions on using `fastFMM` in Python through the Python packages `rpy2` and `fast_fmm_rpy2`.
