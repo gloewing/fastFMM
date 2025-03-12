@@ -2,7 +2,7 @@
 #'
 #' Fit a function-on-scalar regression model for longitudinal
 #' functional outcomes and scalar predictors using the Fast Univariate
-#' Inference (FUI) approach (Cui et al. 2022).
+#' Inference (FUI) approach (Cui et al. 2022; Loewinger et al. 2024).
 #'
 #' The FUI approach comprises of three steps:
 #' \enumerate{
@@ -14,7 +14,8 @@
 #' }
 #'
 #' For more information on each step, please refer to the FUI paper
-#' by Cui et al. (2022).
+#' by Cui et al. (2022). For more information on the method of moments estimator 
+#' applied in step 3, see Loewinger et al. (2024).
 #'
 #' @param formula Two-sided formula object in lme4 formula syntax.
 #' The difference is that the response need to be specified as a matrix
@@ -84,6 +85,10 @@
 #' @references Cui, E., Leroux, A., Smirnova, E., Crainiceanu, C. (2022). Fast
 #' Univariate Inference for Longitudinal Functional Models. \emph{Journal of
 #' Computational and Graphical Statistics}, 31(1), 219-230.
+#'
+#' @references Loewinger, G., Cui, E., Lovinger, D., Pereira, F. (2024). A 
+#' Statistical Framework for Analysis of Trial-Level Temporal Dynamics in 
+#' Fiber Photometry Experiments. \emph{eLife}, 95802.
 #'
 #' @export
 #'
