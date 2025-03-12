@@ -24,6 +24,10 @@
 #' Univariate Inference for Longitudinal Functional Models. \emph{Journal of
 #' Computational and Graphical Statistics}, 31(1), 219-230.
 #'
+#' @references Loewinger, G., Cui, E., Lovinger, D., Pereira, F. (2024). A 
+#' Statistical Framework for Analysis of Trial-Level Temporal Dynamics in 
+#' Fiber Photometry Experiments. \emph{eLife}, 95802.
+#'
 #' @export
 #'
 #' @import ggplot2
