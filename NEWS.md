@@ -1,3 +1,9 @@
+# fastFMM 0.4.0
+
+* Provided pointers to a Python package to call fastFMM from Python.
+* Provided pointers to user guides written in Python.
+* Updated reference/citations on documentation.
+
 # fastFMM 0.3.0
 
 * Fixed bugs.
