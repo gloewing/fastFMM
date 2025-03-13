@@ -7,7 +7,7 @@ Authors@R: c(
     person("Erjia", "Cui", role = c("aut", "cre"), email = "ecui@umn.edu"),
     person("Gabriel", "Loewinger", role = "aut", email = "gloewinger@gmail.com"),
     person("Al", "Xin", role = "ctb", email = "alisonwxin@gmail.com"))
-Description: Implementation of the fast univariate inference approach (Cui et al. (2022) <doi:10.1080/10618600.2021.1950006>, Loewinger et al. (2023) <doi:10.1101/2023.11.06.565896>) for fitting functional mixed models. User guides and Python package information can be found at <https://github.com/gloewing/photometry_FLMM>.
+Description: Implementation of the fast univariate inference approach (Cui et al. (2022) <doi:10.1080/10618600.2021.1950006>, Loewinger et al. (2024) <doi:10.7554/eLife.95802.2>) for fitting functional mixed models. User guides and Python package information can be found at <https://github.com/gloewing/photometry_FLMM>.
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
