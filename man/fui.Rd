@@ -22,12 +22,13 @@ fui(
   num_boots = 500,
   boot_type = NULL,
   seed = 1,
-  subj_ID = NULL,
-  num_cores = 1,
+  subj_id = NULL,
+  n_cores = 1,
   caic = FALSE,
-  REs = FALSE,
+  randeffs = FALSE,
   non_neg = 0,
   MoM = 1,
+  concurrent = FALSE,
   impute_outcome = FALSE
 )
 }
@@ -42,7 +43,7 @@ of the longitudinal functional observations on the domain.}
 \item{family}{GLM family of the response. Defaults to \code{gaussian}.}
 
 \item{var}{Logical, indicating whether to calculate and return variance
-of the coefficient estimates. Defaults to \code{TRUE}.}
+of the coefficient estimates. Defaults to `TRUE`.}
 
 \item{analytic}{Logical, indicating whether to use the analytic inferenc
 approach or bootstrap. Defaults to \code{TRUE}.}
@@ -90,14 +91,14 @@ small cluster (n<=10) gaussian responses, defaults to "reb".}
 \item{seed}{Numeric value used to make sure bootstrap replicate (draws) are
 correlated across functional domains for certain bootstrap approach}
 
-\item{subj_ID}{Name of the variable that contains subject ID.}
+\item{subj_id}{Name of the variable that contains subject ID.}
 
-\item{num_cores}{Number of cores for parallelization. Defaults to 1.}
+\item{n_cores}{Number of cores for parallelization. Defaults to 1.}
 
 \item{caic}{Logical, indicating whether to calculate cAIC. Defaults to
 \code{FALSE}.}
 
-\item{REs}{Logical, indicating whether to return random effect estimates.
+\item{randeffs}{Logical, indicating whether to return random effect estimates.
 Defaults to \code{FALSE}.}
 
 \item{non_neg}{0 - no non-negativity constrains, 1 - non-negativity
@@ -106,15 +107,19 @@ average of coefficents for 1 variance term. Defaults to 0.}
 
 \item{MoM}{Method of moments estimator. Defaults to 1.}
 
-\item{impute_outcome}{Logical, indicating whether to impute missing outcome
-values with FPCA. This has not been tested thoroughly so use with caution.
+\item{concurrent}{Logical, indicating whether to fit a concurrent model.
 Defaults to \code{FALSE}.}
+
+\item{impute_outcome}{Logical, indicating whether to impute missing outcome
+values with FPCA. Defaults to \code{FALSE}. Use with caution as the
+downstream effects are not tested.}
 }
 \value{
 A list containing:
 \item{betaHat}{Estimated functional fixed effects}
 \item{argvals}{Location of the observations}
-\item{betaHat.var}{Variance estimates of the functional fixed effects (if specified)}
+\item{betaHat.var}{Variance estimates of the functional fixed effects
+(if specified)}
 \item{qn}{critical values used to construct joint CI}
 \item{...}{...}
 }

@@ -66,7 +66,7 @@ plot_fui <- function(fuiobj,
 
   for(r in 1:num_var){
 
-    if(is.null(fuiobj$betaHat.var)){
+    if(is.null(fuiobj$betaHat_var)){
       beta.hat.plt <- data.frame(s = fuiobj$argvals,
                                  beta = fuiobj$betaHat[r,])
       plot_list[[r]] <- ggplot() +
@@ -84,10 +84,10 @@ plot_fui <- function(fuiobj,
 
       beta.hat.plt <- data.frame(s = fuiobj$argvals,
                                  beta = fuiobj$betaHat[r,],
-                                 lower = fuiobj$betaHat[r,] - 2*sqrt(diag(fuiobj$betaHat.var[,,r])),
-                                 upper = fuiobj$betaHat[r,] + 2*sqrt(diag(fuiobj$betaHat.var[,,r])),
-                                 lower.joint = fuiobj$betaHat[r,] - fuiobj$qn[r]*sqrt(diag(fuiobj$betaHat.var[,,r])),
-                                 upper.joint = fuiobj$betaHat[r,] + fuiobj$qn[r]*sqrt(diag(fuiobj$betaHat.var[,,r])))
+                                 lower = fuiobj$betaHat[r,] - 2*sqrt(diag(fuiobj$betaHat_var[,,r])),
+                                 upper = fuiobj$betaHat[r,] + 2*sqrt(diag(fuiobj$betaHat_var[,,r])),
+                                 lower.joint = fuiobj$betaHat[r,] - fuiobj$qn[r]*sqrt(diag(fuiobj$betaHat_var[,,r])),
+                                 upper.joint = fuiobj$betaHat[r,] + fuiobj$qn[r]*sqrt(diag(fuiobj$betaHat_var[,,r])))
 
       plot_list[[r]] <- ggplot() +
         theme_classic() +
@@ -110,7 +110,7 @@ plot_fui <- function(fuiobj,
       plot_list[[r]] <- plot_list[[r]] + coord_cartesian(ylim = ylim)
       ylimit <- ylim
     }else{
-      if(is.null(fuiobj$betaHat.var)){
+      if(is.null(fuiobj$betaHat_var)){
         ylimit <- c(min(beta.hat.plt$beta), max(beta.hat.plt$beta))
         y_adjust <- y_scal_orig * (max(beta.hat.plt$beta) - min(beta.hat.plt$beta))
       }else{
@@ -143,7 +143,7 @@ plot_fui <- function(fuiobj,
 
     }
 
-    if(!is.null(fuiobj$betaHat.var)){
+    if(!is.null(fuiobj$betaHat_var)){
       if(max(beta.hat.plt$upper.joint) > 0 & min(beta.hat.plt$lower.joint) < 0){
         plot_list[[r]] <- plot_list[[r]] +
           geom_segment(aes_string(x=xlim[1] - x_range, xend=xlim[2] + x_range,
@@ -161,7 +161,7 @@ plot_fui <- function(fuiobj,
 
   plot_return <- do.call("grid.arrange", c(plot_list, nrow = num_row)) # plot
   plot_return # show plots
-  
+
   if(return == TRUE){
     res_list$plot <- plot_return # save to returned object
     return(res_list)
