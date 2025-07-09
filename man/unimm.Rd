@@ -2,19 +2,35 @@
 % Please edit documentation in R/unimm.R
 \name{unimm}
 \alias{unimm}
-\title{Generic "unimm" model fitting}
+\title{Fit a univariate mixed model}
 \usage{
-unimm(fmm, ...)
+unimm(l, data, model_formula, family, residuals, caic, REs, analytic)
 }
 \arguments{
-\item{fmm}{An object that is or inherits from the "fastFMM" class.}
+\item{l}{location to fit the model}
 
-\item{...}{Additional arguments.}
+\item{data}{data frame containing all the variables in formula. Uses value
+fed to `fui`.}
+
+\item{model_formula}{Character version of a two-sided formula object in lme4
+formula syntax, produced within `fui`.}
+
+\item{family}{GLM family of the response. Uses value fed to `fui`.}
+
+\item{residuals}{Logical, indicating whether to save residuals from
+unsmoothed LME. Uses value fed to `fui`.}
+
+\item{caic}{Logical, indicating whether to calculate cAIC. Defaults to \code{FALSE}.}
+
+\item{REs}{Logical, indicating whether to return random effect estimates.
+Uses value fed to `fui`.}
+
+\item{analytic}{Logical, indicating whether to use the analytic inference
+approach or bootstrap. Uses value fed to `fui`.}
 }
 \value{
-Results depends on the dispatched method.
+a list containing point estimates, variance estimates, etc.
 }
 \description{
-Dispatches class-specific methods for fitting a single point during the
-univariate mixed model step.
+Fits a mixed model at location l. Part of Step 1 of the FUI approach.
 }

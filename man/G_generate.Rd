@@ -2,19 +2,30 @@
 % Please edit documentation in R/G_generate.R
 \name{G_generate}
 \alias{G_generate}
-\title{Generic "G_generate" G matrix setup}
+\title{Creates the design matrix that allows for estimation of G}
 \usage{
-G_generate(fmm, ...)
+G_generate(data, Z_lst, RE_table, MoM, ID = "id")
 }
 \arguments{
-\item{fmm}{"fastFMM" object}
+\item{data}{Data frame that contains the predictors and outcome}
 
-\item{...}{Additional arguments}
+\item{Z_lst}{Transposed list of Z matrices from the univariate fits}
+
+\item{RE_table}{Table of random effects and interactions, generated from the
+`lmerMod` object}
+
+\item{MoM}{Integer to determine type of MoM estimation.}
+
+\item{ID}{Name of the ID factor, assuming names of `HHat` are generated from
+the same table in the same order}
 }
 \value{
-A design matrix for G estimation.
+List containing Z matrices and indices (unsure)
 }
 \description{
-Creates the design matrix that allows for the estimation of the G matrix.
-Output related to "G_estimate" dispatch.
+The function `G_estimate` uses a MoM method,
+and `G_estimate_randint` is a special case of `G_estimate`.
+}
+\details{
+Helper function for variance estimation in `fui`.
 }

@@ -1,47 +1,32 @@
-#' Generic "G_generate" G matrix setup
+#' Creates the design matrix that allows for estimation of G
 #'
-#' Creates the design matrix that allows for the estimation of the G matrix.
-#' Output related to "G_estimate" dispatch.
+#' The function `G_estimate` uses a MoM method,
+#' and `G_estimate_randint` is a special case of `G_estimate`.
 #'
-#' @param fmm "fastFMM" object
-#' @param ... Additional arguments
+#' Helper function for variance estimation in `fui`.
 #'
-#' @return A design matrix for G estimation.
-#' @export
+#' @param data Data frame that contains the predictors and outcome
+#' @param MoM Integer to determine type of MoM estimation.
+#' @param Z_lst Transposed list of Z matrices from the univariate fits
+#' @param RE_table Table of random effects and interactions, generated from the
+#' `lmerMod` object
+#' @param ID Name of the ID factor, assuming names of `HHat` are generated from
+#' the same table in the same order
+#'
+#' @return List containing Z matrices and indices (unsure)
+#'
+#' @import lme4
 
-G_generate <- function(fmm, ...) {
-  UseMethod("G_generate")
-}
-
-#' Generate the G matrix in non-concurrent cases
-#'
-#' Creates a design matrix from the massive univariate step, assuming the model
-#' is not concurrent.
-#'
-#' @param fmm "fastFMM" object. Ignored except for dispatch.
-#' @param mum The massively univariate model output. Contains relevant data,
-#' such as the transposed Ztlist from the univariate fit.
-#' @param MoM indicator for type of MoM estimation
-#'
-#' @method G_generate fastFMM
-#' @return A list with the new Z, the original Ztlist, and indices
-#' @export
-
-G_generate.fastFMM <- function(fmm, mum, MoM) {
-
+G_generate <- function(data, Z_lst, RE_table, MoM, ID ="id"){
+  # data fed to fui function
   # Z_lst is the ZTlist (transposed) output from:
   #   sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )
   # RE_table is a table from VarCorr(X) where X is a lme4 "lmerMod" class object
   # ID is the name of the ID factor (which determines what we can sum across)
   # assumes the names of HHat are generated from this same table in same order
 
-  Z_lst <- mum$ztlist
-  RE_table <- mum$varcorr_df
-  ID <- mum$subj_id
-
   #1) concatenate Z_orig
-  # list where each element will be design submatrix for corresponding term
-  Z_orig <- Z_lst
+  Z_orig <- Z_lst # list where each element will be design submatrix for corresponding term
   z_names <- names(Z_lst)
 
   # Use summed rows if MoM == 1; o/w, use unsummed version
@@ -55,11 +40,8 @@ G_generate.fastFMM <- function(fmm, mum, MoM) {
 
 
   #2) prepare design matrix for regression
-  # list where each element will be design submatrix for corresponding term
-  Z <- vector(length = nrow(RE_table), "list")
-  # vector where each element are indices of eventual Z matrix corresponding to
-  # each term in HHat (for summing in OLS)
-  idx_vec <- vector(length = nrow(RE_table))
+  Z <- vector(length = nrow(RE_table), "list") # list where each element will be design submatrix for corresponding term
+  idx_vec <- vector(length = nrow(RE_table)) # vector where each element are indices of eventual Z matrix corresponding to each term in HHat (for summing in OLS)
 
   # iterate through covariance term names (i.e., random effect terms)
   for (k in 1:nrow(RE_table)) {
@@ -99,15 +81,11 @@ G_generate.fastFMM <- function(fmm, mum, MoM) {
       ID_flag <- FALSE # this is always false for interactions of random effects
     } else {
       re_interact <- FALSE # interaction of random effects
-      # This determines whether the main subject/ID variable is triggered:
-      # Indicates we should rowSum across all columns associated with ID
-      ID_flag <- ifelse (re_name == ID, TRUE, FALSE)
+      ID_flag <- ifelse (re_name == ID, TRUE, FALSE) # this determines whether the main subject/ID variable is triggered -- indicates we should rowSum across all columns associated with ID
     }
 
-    # either a blank or the name of the last variable
-    v2 <- ifelse (is.na(RE_table$var2[k]), "", paste0("_", RE_table$var2[k]))
-    # intercept term so does not require squaring
-    intrcpt <- ifelse ( RE_table$var1[k] == "(Intercept)", TRUE, FALSE )
+    v2 <- ifelse (is.na(RE_table$var2[k]), "", paste0("_", RE_table$var2[k])) # either a blank or the name of the last variable
+    intrcpt <- ifelse ( RE_table$var1[k] == "(Intercept)", TRUE, FALSE )  # intercept term so does not require squaring
 
     colnames(Z[[k]]) <- paste0(
       RE_table$grp[k], "_", RE_table$var1[k], v2, "_", 1:ncol(Z[[k]])
@@ -130,8 +108,7 @@ G_generate.fastFMM <- function(fmm, mum, MoM) {
 
   # sum across variables
   # this comes from derivations in Overleaf for method of moments estimator of G(s_1, s_2)
-  # sum all sub matrices for random effects design matrix
-  Z_orig <- sapply(Z_orig, rowSums)
+  Z_orig <- sapply(Z_orig, rowSums) # sum all sub matrices for random effects design matrix
   colnames(Z_orig) <- z_names
 
   return(
@@ -142,127 +119,5 @@ G_generate.fastFMM <- function(fmm, mum, MoM) {
       idx_vec = idx_vec[-1]
     )
   )
-}
 
-#' Generate the G matrix in concurrent cases
-#'
-#' Creates a design matrix from the massive univariate step, assuming the model
-#' is concurrent. Unlike the non-concurrent case, there is curently no encoding
-#' for different MoM estimators.
-#'
-#' @param fmm "fastFMM" object. Ignored except for dispatch.
-#' @param mum The massively univariate model output. Contains relevant data,
-#' such as the transposed Ztlist from the univariate fit.
-#' @param MoM indicator for type of MoM estimation
-#' @param i Integer for first index of the covariance
-#' @param j Integer for second index of the covariance
-#'
-#' @method G_generate fastFMMconc
-#' @return A list with the new Z, the original Ztlist, and indices
-#'
-
-#' @importFrom Matrix rowSums
-#' @export
-
-# AX: Add back all_crossterms
-G_generate.fastFMMconc <- function(fmm, mum, i, j, MoM = 1) {
-
-  # Z_lst is the ZTlist (transposed) output from:
-  #   sapply(getME(fit_uni, "Ztlist"), function(x) t(x) )
-  # RE_table is a table from VarCorr(X) where X is a lme4 "lmerMod" class object
-  # ID is the name of the ID factor (which determines what we can sum across)
-  # assumes the names of HHat are generated from this same table in same order
-
-  # Choice of i or j for the RE table is arbitrary
-  RE_table <- mum$varcorr_df[[i]]
-  ID <- mum$subj_id
-
-  # 1) Gather the appropriate Z matrices
-
-  # Note these are rowSums
-  Z_list_i <- mum$ztlist[[i]]
-  Z_list_j <- mum$ztlist[[j]]
-
-  # list where each element will be the design submatrix for corresponding term
-  z_names_i <- colnames(Z_list_i)
-  z_names_j <- colnames(Z_list_j)
-  # RE_table rows should be consistent, so i or j is arbitrary
-  Z <- vector(length = nrow(RE_table), "list")
-  idx_vec <- vector(length = nrow(RE_table))
-
-  for (k in 1:nrow(RE_table)) {
-    re_name <-  RE_table[k, 1] # random effects
-    var1_i <- RE_table$var1[k]
-    var1_j <- gsub(paste0("\\_", i, "$"), paste0("\\_", j), var1_i)
-    nm1_i <- paste0(re_name, ".",  var1_i) # name of Z_lst (outputted by lme4 getME() )
-    nm1_j <- paste0(re_name, ".", var1_j)
-
-    if (is.na(RE_table$var2)[k]) { # not cross-term
-      Z[[k]] <- matrix(
-        Z_list_i[, nm1_i] * Z_list_j[, nm1_j],
-        ncol = 1
-      )
-    } else { # is cross-term
-      # Pick nm2 from the j index
-      var2_j <- gsub(paste0("\\_", i, "$"), paste0("\\_", j), RE_table$var2[k])
-      nm2_j <- paste0(RE_table[k, 1], '.', var2_j)
-      Z[[k]] <- matrix(
-        Z_list_i[, nm1_i] * Z_list_j[, nm2_j] * 2,
-        ncol = 1
-      )
-    }
-    idx_vec[k] <- ncol(Z[[k]])
-  }
-
-  idx_vec <- c(0, cumsum(idx_vec))
-  # column indices
-  idx_lst <- sapply(
-    seq_along(1:nrow(RE_table)),
-    function(x) (idx_vec[x] + 1):(idx_vec[x+1])
-  )
-  Z <- do.call(cbind, Z)
-
-  return(
-    list(
-      Z = Z,
-      # Z_orig is already gone because of rowSums previously
-      Z_orig = NULL,
-      ztlist = list(Z_list_i, Z_list_j),
-      idx_lst = idx_lst,
-      idx_vec = idx_vec[-1],
-      RE_table = RE_table
-    )
-  )
-}
-
-#' Create crossterms from two matrices
-#'
-#' A helper function for `G_generate` that produces cross-terms.
-#'
-#' @param Z_i Matrix
-#' @param Z_j Matrix
-#' @param make_sparse Boolean for whether to output a sparse matrix.
-#' Default is `TRUE`.
-#'
-#' @return Matrix of cross-terms between `Z_i` and `Z_j`.
-#'
-#' @import Matrix
-
-all_crossterms <- function(Z_i, Z_j, make_sparse = TRUE) {
-
-  if (!identical(dim(Z_i), dim(Z_j)))
-    stop('In G_generate, matrices must have the same dimension for cross-term.')
-
-  n <- ncol(Z_i)
-  # Get combinations without repeats
-  temp <- cbind(rep(1:n, n:1), do.call(c, sapply(1:n, function(x) x:n)))
-  xterm <- sapply(
-    1:nrow(temp),
-    function(idx) Z_i[, temp[idx, 1]] * Z_j[, temp[idx, 2]]
-  )
-
-  if (make_sparse)
-    return(Matrix(xterm, sparse = T))
-  else
-    return(xterm)
 }
